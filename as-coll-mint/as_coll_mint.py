@@ -119,7 +119,11 @@ def archivesspace_api_call(path, method = 'GET', data = {}, as_obj = True):
 def archivesspace_login():
     global SESSION
     path = '/users/%s/login' % config.get('archivesspace','username')
-    obj = archivesspace_api_call(path, 'POST', urllib.urlencode({'password':config.get('archivesspace','password') }))
+    obj = archivesspace_api_call(path,
+                                'POST',
+                                urllib.urlencode(
+                                    {'password':config.get('archivesspace',
+                                        'password') }))
     SESSION = obj["session"]
 
 if __name__ == '__main__':
@@ -137,10 +141,8 @@ if __name__ == '__main__':
     if os.path.isfile(sys.argv[1]) != True :
         sys.exit('"'+sys.argv[1] + '" is not a file. Please provide a TSV with id and identifer columns.')
 
-    # When we are ready to do each one.... testing for now.
     with open(sys.argv[1]) as csvfile:
 
-        # The csv file I have has multiple columns and DictReader allows us to get just the ones we need by name
         reader = csv.DictReader(csvfile, delimiter='\t')
         for row in reader:
             print(row['id'], row['identifier'])
@@ -148,9 +150,13 @@ if __name__ == '__main__':
             # Clean collection identifiers if necessary
             if '[' in row['identifier']: #identifier list straight from DB, let's clean it up
                 identifier = ''
-                for f in json.loads(row['identifier']): #using the loop because a straight join chokes on null values from unused identifier fields
-                    identifier += ( f + '-' ) if f else '' # concatenate but don't include null fields
-                row['identifier'] = identifier.rstrip('-') #pull off the extraneous hyphens and return
+                #join chokes on unused identifier fields (null values), loop instead
+                for f in json.loads(row['identifier']):
+                    # concatenate but don't include null fields
+                    identifier += ( f + '-' ) if f else ''
+
+                #pull off the extraneous hyphens and return
+                row['identifier'] = identifier.rstrip('-')
                 logging.info('Cleaned identifier for %s: %s' % (row['id'], row['identifier']))
 
             # MINT the ark
@@ -163,30 +169,30 @@ if __name__ == '__main__':
             # UPDATE ArchivesSpace EAD Location
             update_ead_location(row['id'],ark)
 
-            # Export PDF
+            # EXPORT PDF
             export_fa_pdf(row['id'],row['identifier'])
 
-## Testing API Calls so we don't have to rely on a spreadsheet export.
-## Could use /repositories/:id/resources but I would rather not retrieve every resource just to find the ones I want...
-## Search narrows down the results to published (or not) resources, but doesn't like searching ead_location...
-## Bah, long live SQL queries to TSV.
+    ## Testing API Calls so we don't have to rely on a spreadsheet export...
+    ## Could use /repositories/:id/resources but I would rather not retrieve every resource just to find the ones I want...
+    ## Search narrows down the results to published (or not) resources, but doesn't like searching ead_location...
+    ## Bah, long live SQL queries to TSV.
 
-# print(json.dumps(archivesspace_api_call("/repositories/%s/resources" % config.get('archivesspace', 'repository'), 'GET', {"page": '1', 'page_size':'2'}), indent = 2))
-# print(json.dumps(archivesspace_api_call("/search", data = {'page':'1','type[]':'resource','aq':json.dumps({'query':{'field':'title','value':'Test','jsonmodel_type':'field_query'}})}), indent = 2))
-# print(json.dumps(archivesspace_api_call("/search",
-#     data = {'page':'1', 'page_size':'1',
-#             'type[]':'resource',
-#             'aq':json.dumps({'query':
-#                                 {'op':'AND',
-#                                 'subqueries':[
-#                                     {'field':'title','value':'Test','jsonmodel_type':'field_query'},
-#                                     {'field':'published','value':'true','jsonmodel_type':'boolean_field_query'}],
-#                                     ],
-#                                 'jsonmodel_type':'boolean_query'
-#                                 },
-#                               'jsonmodel_type':'advanced_query'
-#                             })
-#             }), indent = 2))
+    # print(json.dumps(archivesspace_api_call("/repositories/%s/resources" % config.get('archivesspace', 'repository'), 'GET', {"page": '1', 'page_size':'2'}), indent = 2))
+    # print(json.dumps(archivesspace_api_call("/search", data = {'page':'1','type[]':'resource','aq':json.dumps({'query':{'field':'title','value':'Test','jsonmodel_type':'field_query'}})}), indent = 2))
+    # print(json.dumps(archivesspace_api_call("/search",
+    #     data = {'page':'1', 'page_size':'1',
+    #             'type[]':'resource',
+    #             'aq':json.dumps({'query':
+    #                                 {'op':'AND',
+    #                                 'subqueries':[
+    #                                     {'field':'title','value':'Test','jsonmodel_type':'field_query'},
+    #                                     {'field':'published','value':'true','jsonmodel_type':'boolean_field_query'}],
+    #                                     ],
+    #                                 'jsonmodel_type':'boolean_query'
+    #                                 },
+    #                               'jsonmodel_type':'advanced_query'
+    #                             })
+    #             }), indent = 2))
     # print(json.dumps(archivesspace_api_call("/search",
     #             data = {'page':'1','page_size':'1',
     #                     'type[]':'resource',
