@@ -38,6 +38,6 @@ if __name__ == '__main__':
             if r['coll_man'] in identifier_ark.keys():
                 update_sql += "UPDATE {0} SET {1}='{2}' WHERE {3}='{4}'\n".format(TABLE, LINK, identifier_ark[r[IDENTIFIER]], ID, r[ID])
             else:
-                print(r['coll_man']+' is not in ArchivesSpace')
+                print(r[IDENTIFIER]+' is not in ArchivesSpace')
 
     print(update_sql);
