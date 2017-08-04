@@ -145,7 +145,7 @@ if __name__ == '__main__':
 
         reader = csv.DictReader(csvfile, delimiter='\t')
         for row in reader:
-            print(row['id'], row['identifier'])
+            # print(row['id'], row['identifier'])
 
             # Clean collection identifiers if necessary
             if '[' in row['identifier']: #identifier list straight from DB, let's clean it up
@@ -166,6 +166,9 @@ if __name__ == '__main__':
             else:
                 ark = '%s/%s' % (config.get('ezid','ark-resolver'),mint_ark(row['identifier']))
 
+            #PRINT id, identifier, and ARK
+            print('\t'.join([row['id'],row['identifier'],ark]))
+            
             # UPDATE ArchivesSpace EAD Location
             update_ead_location(row['id'],ark)
 
