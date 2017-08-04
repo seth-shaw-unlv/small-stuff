@@ -3,6 +3,19 @@
 import csv
 import sys
 
+# Only works with MSS table. Update for each table.
+
+TABLE = 'SPEC_MAN_MANUSCRIPTS_MAN'
+ID = 'id_man'
+IDENTIFIER = 'coll_man'
+LINK = 'link_guide'
+
+# SPEC_MAN_MANUSCRIPTS_MAN, id_man, coll_man/link_photos
+# SPEC_ORAL_HISTORY_SOH, id_soh, coll_number_soh, link_digital_soh
+# SPEC_PC_PHOTOCOLL_PHO, id_pho, coll_number_pho/link_photos_pho
+# SPEC_UNLV_ARCHIVES_UAR, id_uar, link_guide_uar
+
+
 if __name__ == '__main__':
 
     # Ensure we have the two arguments
@@ -23,7 +36,7 @@ if __name__ == '__main__':
         reader = csv.DictReader(csvfile, delimiter='\t')
         for r in reader:
             if r['coll_man'] in identifier_ark.keys():
-                update_sql += "UPDATE SPEC_MAN_MANUSCRIPTS_MAN SET link_guide='{0}' WHERE id_man='{1}'\n".format(identifier_ark[r['coll_man']],r['id_man'])
+                update_sql += "UPDATE {0} SET {1}='{2}' WHERE {3}='{4}'\n".format(TABLE, LINK, identifier_ark[r[IDENTIFIER]], ID, r[ID])
             else:
                 print(r['coll_man']+' is not in ArchivesSpace')
 
