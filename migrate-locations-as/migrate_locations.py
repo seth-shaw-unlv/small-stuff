@@ -24,6 +24,8 @@ def archivesspace_api_call(path, method = 'GET', data = {}, as_obj = True):
         else:
             request = urllib2.Request(path)
     elif method == 'POST':
+        if isinstance(data, dict):
+            data = json.dumps(data)
         request = urllib2.Request(path, data)
     else:
         logging.error("Unknown or unused HTTP method: %s" % method)
@@ -54,7 +56,7 @@ def archivesspace_login():
     SESSION = obj["session"]
 
 
-def parse_containers(to_parse):
+def parse_containers(to_parse, container_type='box', mss=''):
     containers = []
 
     #Clean-up input
@@ -68,22 +70,26 @@ def parse_containers(to_parse):
         if '-' in group:
             (start, part, end) = group.partition('-')
             if start.strip().isdigit() and end.strip().isdigit():
-                containers.extend(range(int(start),int(end)+1))
+                for number in range(int(start),int(end)+1):
+                    containers.append('-'.join((mss,container_type,str(number))))
             else:
-                containers.append(group.strip())
+                containers.append(mss+' '+group.strip())
         elif 'to' in group:
             (start, part, end) = group.partition('to')
             if start.strip().isdigit() and end.strip().isdigit():
-                containers.extend(range(int(start),int(end)+1))
+                for number in range(int(start),int(end)+1):
+                    containers.append('-'.join((mss,container_type,str(number))))
             else:
-                containers.append(group.strip())
+                containers.append(mss+' '+group.strip())
         elif ' and ' in group:
-            containers.extend(group.split(' and '))
+            for number in group.split(' and '):
+                containers.append('-'.join((mss,container_type,number.strip().lstrip('0'))))
+        elif group.strip().isdigit():
+            containers.append('-'.join((mss,container_type,group.strip().lstrip('0'))))
         else:
-            containers.append(group.strip())
+            containers.append('-'.join((mss,group.strip().lstrip('0'))))
 
     return containers
-
 
 if __name__ == '__main__':
 
@@ -97,17 +103,12 @@ if __name__ == '__main__':
     configFilePath = r'config.ini'
     config.read(configFilePath)
 
-    # LOAD Location URIs into a hash table
-    # locations are paginated, iterate through them
-    locations = {}
-
-    # Once we find the uri for a collection we need to hold on to it so we can
-    # pull it up directly instead of using the outdated search
-    MSS_index = {}
-
     #We will need today later
     today = datetime.datetime.now().isoformat('T')
 
+    #LOAD Locations room-area-coords = uri
+    logging.info("Starting to load locations...")
+    locations = {}
 
     next_page = 1
     last_page = 1 #assume one page until told otherwise
@@ -133,6 +134,33 @@ if __name__ == '__main__':
             locations[format('%s %s') % (location['room'],coords)] = location['uri']
         next_page += 1
 
+    #SECOND VERSE, SAME AS THE FIRST - For Top Containers this time, (MS-00000-type-indicator = uri)
+    logging.info("Starting to load top containers...")
+    top_containers = {}
+
+    #reset counters
+    next_page = 1
+    last_page = 1 #assume one page until told otherwise
+    page_size = 200 #arbitrary large number
+    while next_page <= last_page:
+        container_obj = archivesspace_api_call('/repositories/%s/top_containers' % config.get('archivesspace',
+                                                      'repository'), data={'page':next_page, 'page_size':page_size})
+        # print("Page %s of %s" % (next_page, last_page))
+        # print(json.dumps(location_obj))
+        if container_obj['last_page'] != last_page:
+            # print('Updating last page from %s to %s' % (last_page, location_obj['last_page']))
+            last_page = container_obj['last_page']
+        for container in container_obj['results']:
+            index = ''
+            top_containers['-'.join((
+                container['collection'][0]['identifier'],
+                container['type'],
+                container['indicator'].lstrip('0')
+                ))] = container
+        next_page += 1
+
+    # print "Dumping top containers: %s" % json.dumps(top_containers)
+
     # EACH spreadsheet row
 
     if len(sys.argv)<2:
@@ -147,112 +175,44 @@ if __name__ == '__main__':
             # Find the collection by MS
             if not 'Location' in row.keys():
                 print "Location for this row not found"
+                continue
             elif not 'Collection number' in row.keys():
                 print '%s has no collection number associated with it' % row['Location']
+                continue
             elif row['Collection number'] == '':
                 print '%s appears empty' % (row['Location'])
-            elif not row['Collection number'].startswith('MS'):
+                continue
+            elif not row['Collection number'].startswith(('MS','PH')):
                 print '%s has something other than an MS: %s' % (row['Location'], row['Collection number'])
-            else:
-                # So good so far, we have all the pieces from the CSV we need.
-                resource = {}
-                if row['Collection number'] in MSS_index.keys(): #We've done this collection before.
-                    logging.debug("Found %s before, asking for it again in case of update" % (row['Collection number']))
-                    results_obj = archivesspace_api_call(MSS_index[row['Collection number']])
-                    resource = {'obj':results_obj, 'identifier':row['Collection number'], 'id':results_obj['uri']}
-                else:
-                    logging.debug("Looking up %s for the first time" % row['Collection number'])
-                    results_obj = archivesspace_api_call("/repositories/%s/search" % config.get('archivesspace', 'repository'),data={'q':'identifier:'+row['Collection number'],'page':'1','page_size':'1'})
+                continue
 
-                    if not 'results' in results_obj.keys() or not results_obj['results'] or results_obj['results'][0]['identifier'] != row['Collection number']:
-                        print '%s has %s but couldn\'t find it in AS:\t%s' % (row['Location'], row['Collection number'], parse_containers(row['Container']))
-                        continue
-                    else:
-                        resource = {'obj':json.loads(results_obj['results'][0]['json']),'identifier':results_obj['results'][0]['identifier'],'id':results_obj['results'][0]['id']}
-                        MSS_index[row['Collection number']] = resource['id']
+            location_code = format('%s %s') % (row['Room'].strip(),row['Location'].strip())
 
-                # CAN'T remove lock_version, AS will throw a 409 - Conflict error demanding you provide one. It looks like the indexer isn't keeping up.
-                # print "%s lock version %s, attempting to remove it...." %(resource['identifier'], resource['obj']['lock_version'])
-                # resource['obj'].pop('lock_version', None)
-                # print(json.dumps(resource, indent=4))
-                print "%s has %s (%s):\t%s" % (row['Location'], resource['identifier'], resource['id'], parse_containers(row['Container']))
-                # Find Location URI in hash
-                location_code = format('%s %s') % (row['Room'].strip(),row['Location'].strip())
-                if location_code in locations.keys():
-                    # print 'Found location %s: %s' % (locations[location_code], location_code)
+            if not location_code in locations.keys():
+                print "Could not find location %s in AS to store %s %s" % (location_code, row['Collection number'], row['Container'])
+                continue
 
-                    # Create a top-level container
+            # So good so far, we have all the pieces from the CSV we need.
+            # Look up each container in this row
+            for container in parse_containers(row['Container'], mss=row['Collection number']):
+                if not container in top_containers.keys():
+                    print "Could not find container %s in AS, should be in location: %s" % (container, location_code)
+                    continue
 
-                    # Possible container types: box, carton, case, folder, frame, object, reel
-                    container_type = 'box' # We may make this more dynamic now, but assume boxes for now.
+                if top_containers[container]['container_locations']:
+                    print "Container %s already has a location: %s" % (container,json.dumps(top_containers[container]['container_locations']))
+                    continue
 
-                    instances = [] # All the containers we will add to the collection located here
+                location_obj = {
+                    'jsonmodel_type':'container_location',
+                    'status':'current',
+                    'ref':locations[location_code],
+                    'start_date':today
+                }
+                top_containers[container]['container_locations'].append(location_obj)
+                response_obj = archivesspace_api_call(top_containers[container]['uri'], 'POST', data=top_containers[container])
+                if not isinstance(response_obj, dict) or not 'status' in response_obj.keys() or not response_obj['status'] == 'Updated':
+                    logging.warning('Could not update container %s with location %s: %s' % (container, location_code, json.dumps(response_obj)))
+                    continue
 
-                    for container_number in parse_containers(row['Container']):
-                        container_number = str(container_number) #sometimes we get integers, but we want strings to use string functions
-                        if container_number.isdigit():
-                            # Check if they exist
-                            existing = False #assume missing unless proven otherwise
-                            for instance in resource['obj']['instances']:
-                                if instance['container']['indicator_1'] == container_number:
-                                    existing = True
-                                    break #no need to keep checking
-                            #IF missing
-                            if not existing:
-                                top_container = {'jsonmodel_type':'top_container',
-                                                 'container_locations':
-                                                    [
-                                                        {
-                                                            'jsonmodel_type':'container_location',
-                                                            'ref':locations[location_code],
-                                                            'status':'current',
-                                                            'start_date':today
-                                                        }
-                                                     ],
-                                                 'indicator':container_number,
-                                                 'type':container_type
-                                                }
-                                # POST Top container
-                                response_obj = archivesspace_api_call('/repositories/%s/top_containers' % (config.get('archivesspace', 'repository')),'POST', json.dumps(top_container))
-                                # if not 'status' in response_obj.keys or not response_obj['status'] == 'Created':
-                                #     print "Could not create top container for %s: %s" % (resource['identifier'],json.dumps(top_container))
-                                #     break
-                                logging.debug('Response to creating a top container %s: %s' % (json.dumps(top_container), json.dumps(response_obj)))
-                                # print json.dumps(top_container)
-                                tc_uri = response_obj['uri'] #place-holder until the POST goes live
-                                # Create Instance
-                                instances.append({ "instance_type": "text",
-                                             "jsonmodel_type": "instance",
-                                             "is_representative": False,
-                                             "sub_container": {
-                                                "jsonmodel_type": "sub_container",
-                                                "top_container": { "ref": tc_uri }
-                                              },
-                                              "container": {
-                                                "type_1": container_type,
-                                                "indicator_1": container_number,
-                                                "container_locations": [
-                                                  {
-                                                    "jsonmodel_type": "container_location",
-                                                    "status": "current",
-                                                    "start_date": today.partition('T')[0],
-                                                    "ref": locations[location_code]
-                                                  }
-                                                ]
-                                              }
-                                            })
-                            else:
-                                print "%s already has %s in %s" % (resource['identifier'], container_number, location_code)
-                        else:
-                            print ("%s has a non-standard container (%s) in location %s" % (resource['identifier'], container_number, location_code))
-                        # print "Instances for "+ resource['identifier'] +" ("+ resource['id']+"): "+json.dumps(instances)
-
-                    #POST resource IF instances isn't empty
-                    if instances:
-                        resource['obj']['instances'].extend(instances)
-                        # print "Instances for "+ resource['identifier'] +" ("+ resource['id']+"): "+json.dumps(resource['obj']['instances'])
-                        response_obj = archivesspace_api_call(resource['id'],'POST', json.dumps(resource['obj']))
-                        logging.debug('Response to updating %s: %s' % (resource['identifier'], json.dumps(response_obj)))
-
-                else:
-                    print 'Couldn\'t find %s' % location_code
+                print "Container %s is now in location %s (%s)" % (container, location_code, locations[location_code])
