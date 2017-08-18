@@ -73,14 +73,14 @@ def parse_containers(to_parse, container_type='box', mss=''):
                 for number in range(int(start),int(end)+1):
                     containers.append('-'.join((mss,container_type,str(number))))
             else:
-                containers.append(mss+' '+group.strip())
+                containers.append(mss+'-'+group.strip())
         elif 'to' in group:
             (start, part, end) = group.partition('to')
             if start.strip().isdigit() and end.strip().isdigit():
                 for number in range(int(start),int(end)+1):
                     containers.append('-'.join((mss,container_type,str(number))))
             else:
-                containers.append(mss+' '+group.strip())
+                containers.append(mss+'-'+group.strip())
         elif ' and ' in group:
             for number in group.split(' and '):
                 containers.append('-'.join((mss,container_type,number.strip().lstrip('0'))))
@@ -93,6 +93,12 @@ def parse_containers(to_parse, container_type='box', mss=''):
 
 if __name__ == '__main__':
 
+    # Check arguments
+    if len(sys.argv)<2:
+        sys.exit("Please provide locations spreadsheet.")
+    if os.path.isfile(sys.argv[1]) != True :
+        sys.exit('"'+sys.argv[1] + '" is not a file. Please provide the locations spreadsheet.')
+
     # logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
     #                     filename='location-migration.log',level=logging.DEBUG)
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
@@ -100,7 +106,7 @@ if __name__ == '__main__':
 
     global config
     config = ConfigParser.ConfigParser()
-    configFilePath = r'config.ini'
+    configFilePath = r'config-local.ini'
     config.read(configFilePath)
 
     #We will need today later
@@ -152,6 +158,9 @@ if __name__ == '__main__':
             last_page = container_obj['last_page']
         for container in container_obj['results']:
             index = ''
+            collection = ''
+            if container['collection'] and 'identifier' in container['collection'][0].keys():
+                collection = container['collection'][0]['identifier']
             top_containers['-'.join((
                 container['collection'][0]['identifier'],
                 container['type'],
@@ -163,11 +172,6 @@ if __name__ == '__main__':
 
     # EACH spreadsheet row
 
-    if len(sys.argv)<2:
-        sys.exit("Please provide locations spreadsheet.")
-    if os.path.isfile(sys.argv[1]) != True :
-        sys.exit('"'+sys.argv[1] + '" is not a file. Please provide the locations spreadsheet.')
-
     with open(sys.argv[1], 'rU') as csvfile: #'rU' because Mac Excel exports are wierd
 
         reader = csv.DictReader(csvfile, dialect=csv.excel_tab)
@@ -177,19 +181,19 @@ if __name__ == '__main__':
                 print "Location for this row not found"
                 continue
             elif not 'Collection number' in row.keys():
-                print '%s has no collection number associated with it' % row['Location']
+                print '%s has no collection number associated with it: %s' % (row['Location'], json.dumps(row))
                 continue
-            elif row['Collection number'] == '':
-                print '%s appears empty' % (row['Location'])
+            elif not row['Collection number']:
+                print '%s appears empty: %s' % (row['Location'], json.dumps(row))
                 continue
             elif not row['Collection number'].startswith(('MS','PH')):
-                print '%s has something other than an MS: %s' % (row['Location'], row['Collection number'])
+                print '%s has something other than an MS: %s' % (row['Location'], json.dumps(row))
                 continue
 
             location_code = format('%s %s') % (row['Room'].strip(),row['Location'].strip())
 
             if not location_code in locations.keys():
-                print "Could not find location %s in AS to store %s %s" % (location_code, row['Collection number'], row['Container'])
+                print "Could not find location %s in AS: %s" % (location_code,json.dumps(row))
                 continue
 
             # So good so far, we have all the pieces from the CSV we need.
@@ -216,3 +220,9 @@ if __name__ == '__main__':
                     continue
 
                 print "Container %s is now in location %s (%s)" % (container, location_code, locations[location_code])
+
+    # Do any top containers still not have locations???
+
+    for container in top_containers:
+        if not container['container_locations']:
+            logging.warning('Top container %s (%s) does not have a location' % (container['long_display_string'],container['uri']))
