@@ -74,6 +74,9 @@ if __name__ == '__main__':
                 # print('Unsupported Collection number (%s) in %s %s' % (row['Collection number'],row['Room'], row['Location']))
                 print('Unsupported Collection number (%s): %s' % (row['Collection number'],row['Collection Title']))
                 continue
+            elif not row['Container']:
+                print('Missing container information for %s, %s in %s %s' % (row['Collection number'],row['Collection Title'],row['Room'], row['Location']))
+                continue
 
             # So good so far, we have all the pieces from the CSV we need.
             # Look up each container in this row
