@@ -24,7 +24,10 @@ import urllib, urllib2
 
 SESSION = ''
 
-def mint_ark(identifier):
+
+
+# who_what_when is a dict with the keys who, what, and when. All other keys are ignored.
+def mint_ark(identifier, who_what_when={}):
     request = urllib2.Request("%s/%s" % (config.get('ezid','minter-url'),
                               config.get('ezid','ark-shoulder')))
     request.add_header("Content-Type", "text/plain; charset=UTF-8")
@@ -38,7 +41,11 @@ def mint_ark(identifier):
     #Add target URL
     target = "%s/%s.pdf" % (config.get('archivesspace','pdf-url-prefix'),
                             identifier )
-    data = ("_target: %s" % (target))
+    data = "_target: %s\n" % (target)
+    for descriptive_item in ('who', 'what', 'when'):
+        if descriptive_item in who_what_when.keys() and who_what_when[descriptive_item]:
+            data += '%s: %s\n' % (descriptive_item, who_what_when[descriptive_item])
+
     request.add_data(data.encode("UTF-8"))
 
     try:
@@ -164,11 +171,18 @@ if __name__ == '__main__':
                 ark = row['ead_location']
                 logging.info('Existing ARK for %s: %s' % (row['identifier'],ark))
             else:
-                ark = '%s/%s' % (config.get('ezid','ark-resolver'),mint_ark(row['identifier']))
+                who_what_when = {}
+                if 'title' in row.keys() and row['title']:
+                    who_what_when['what'] = row['title']
+                if 'creator' in row.keys() and row['creator']:
+                    who_what_when['who'] = row['creator']
+                if 'dates' in row.keys() and row['dates']:
+                    who_what_when['when'] = row['dates']
+                ark = '%s/%s' % (config.get('ezid','ark-resolver'),mint_ark(row['identifier'], who_what_when))
 
             #PRINT id, identifier, and ARK
             print('\t'.join([row['id'],row['identifier'],ark]))
-            
+
             # UPDATE ArchivesSpace EAD Location
             update_ead_location(row['id'],ark)
 
