@@ -154,13 +154,16 @@ for rid in sys.argv[1:]:
     dublin_core = {}
     dublin_core['_profile'] = 'dc'
     if 'finding_aid_title' in resource.keys() and resource['finding_aid_title']:
-        dublin_core['title'] = resource['finding_aid_title']
+        dublin_core['dc.title'] = resource['finding_aid_title']
     elif 'title' in resource.keys() and resource['title']:
-        dublin_core['title'] = resource['title']
-    dublin_core['type'] = 'finding aids'
-    dublin_core['creator'] = 'UNLV University Libraries'
-    dublin_core['publisher'] = 'UNLV University Libraries'
-    dublin_core['relation'] = 'collection number %s' % identifier
+        dublin_core['dc.title'] = resource['title']
+    dublin_core['dc.type'] = 'finding aids'
+    dublin_core['dc.creator'] = 'University of Nevada, Las Vegas University Libraries'
+    dublin_core['dc.publisher'] = 'University of Nevada, Las Vegas University Libraries'
+    dublin_core['dc.relation'] = identifier
+    if 'finding_aid_date' in resource.keys() and resource['finding_aid_date']:
+        dublin_core['dc.date'] = resource['finding_aid_date'].replace(u'\u00a9', '').strip()
+
     ark = '%s/%s' % (config.get('ezid','ark-resolver'),mint_ark(identifier, dublin_core))
 
     logging.info('Updating the EAD Location for %s' % rid)
