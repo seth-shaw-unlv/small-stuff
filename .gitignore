@@ -3,3 +3,5 @@ as-coll-mint/config.ini
 *.ini
 *.log
 *.pdf
+*.production
+*.testing
