@@ -1,8 +1,11 @@
 #!/usr/bin/python
 
+from suds.client import Client
+import base64
 import ConfigParser
 import json
 import logging
+import sys
 import urllib, urllib2
 
 # Based on https://gist.github.com/saverkamp/9198310
@@ -23,15 +26,15 @@ class Catcher(object):
         self.password = password
         self.license = license
 
-    def processCONTENTdm(self, action, user, password, license, alias, metadata):
+    def processCONTENTdm(self, action, alias, metadata):
     # function to connect to CatcherServices and process metadata updates
-        transaction = self.client.service.processCONTENTdm(action, url, user, password, license, alias, metadata)
+        transaction = self.client.service.processCONTENTdm(action, self.url, self.user, self.password, self.license, alias, metadata)
         self.transactions.append(transaction)
 
     def edit(self, alias, recordid, field, value):
     #function to edit metadata--call packageMetadata and processCONTENTdm
         metadata = self.packageMetadata('edit', recordid, field, value)
-        self.processCONTENTdm('edit', self.user, self.password, self.license, alias, metadata)
+        self.processCONTENTdm('edit', alias, metadata)
 
     def packageMetadata(self, action, recordid, field, value):
     #function to package metadata in metadata wrapper
@@ -59,13 +62,16 @@ class Query(object):
         """ Returns an array of search results as dicts. """
         alias = alias.lstrip('/')
         query= 'dmQuery/'+'/'.join((alias,search,fields,sortby,str(maxrec),str(start),suppress,docptr,suggest,facets,unpub,denormalize)) + '/json'
-        print 'Running %s' % (self.url + query)
+        logging.debug('Running %s' % (self.url + query))
         request = urllib2.Request(self.url + query)
 
         try:
             response = json.load(urllib2.urlopen(request))
         except urllib2.HTTPError as h:
             logging.error("Unable to process CONTENTdm wsAPI call (%s): %s - %s - %s" % (query, h.code, h.reason, h.read()))
+            return {}
+        except ValueError as v:
+            logging.error("Invalid Response to CONTENTdm wsAPI call (%s): %s" % (query, v)
             return {}
         # PAGING
         if response['pager']['start']:
@@ -78,7 +84,7 @@ class Query(object):
 
 
 # who_what_when is a dict with the keys who, what, and when. All other keys are ignored.
-def mint_ark(identifier, dublin_core={}):
+def mint_ark(target, dublin_core={}):
     request = urllib2.Request("%s/%s" % (config.get('ezid','minter-url'),
                               config.get('ezid','ark-shoulder')))
     request.add_header("Content-Type", "text/plain; charset=UTF-8")
@@ -90,21 +96,19 @@ def mint_ark(identifier, dublin_core={}):
     request.add_header("Authorization","Basic %s" % encoded_auth)
 
     #Add target URL
-    # target = "%s/%s.pdf" % (config.get('archivesspace','pdf-url-prefix'),
-    #                         identifier )
-    data = "_target: %s\n" % (target)
+    data = "_target: %s\n_profile: %s\n" % (target,'dc')
     for descriptive_item_term, descriptive_item_value in dublin_core.iteritems():
         data += '%s: %s\n' % (descriptive_item_term, descriptive_item_value)
 
     request.add_data(data.encode("UTF-8"))
 
     try:
+        logging.debug('Request URL: %s Data: %s'%(request.get_full_url(),requests.get_data()))
         response = urllib2.urlopen(request)
         answer = response.read()
         if answer.startswith('success'):
             code,ark = answer.split(": ")
-            logging.info('Minted ARK for %s: %s => %s' % (identifier,
-                                                          ark, target))
+            logging.info('Minted ARK for %s : %s' % (target,ark))
             return ark
         else:
             logging.error("Can't mint ark: %s", answer)
@@ -119,6 +123,11 @@ def mint_ark(identifier, dublin_core={}):
 
 if __name__ == '__main__':
 
+    if len(sys.argv) < 2 : sys.exit('Please provide a collection alias')
+
+    alias = sys.argv[1].lstrip('/') # The preceding / on an alias is annoying to work with. Chop it off if present.
+
+    # Configuration
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
                         level=logging.INFO)
 
@@ -127,7 +136,38 @@ if __name__ == '__main__':
     configFilePath = r'config.ini'
     config.read(configFilePath)
 
-    test_query = Query(config.get('cdm','wsAPI-url'))
-    results = test_query.query('/oclcsample','0','ark','0',3)
-    print json.dumps(results, indent=4)
-    print "Count of results " + str(len(results))
+    dc_profile = ['title','creator','contributor','publisher','date','extent','format','type','relation']
+
+    #Setup the Catcher Service
+    catcher = Catcher(config.get('cdm','catcher-url'),
+                      config.get('cdm','username'),
+                      config.get('cdm','password'),
+                      config.get('cdm','license')
+                     )
+
+    # Gather all the items in a CONTENTdm collection
+    dmQuery = Query(config.get('cdm','wsAPI-url'))
+
+    for result in dmQuery.query(alias,'0','!'.join(dc_profile)+'!ark','0',3):
+        # Next if it has an ARK
+        if 'ark' in result and 'ark:' in result['ark']:
+            logging.info('Resource %s in %s already has an ARK (%s); skipping...' % (result['pointer'],result['collection'],result['ark']))
+            continue
+
+        # remove the blank DC fields
+        dc_values = dict()
+        for field in dc_profile:
+            # NOTE: the EZID service requires a 'dc.' prefix whereas CDM doesn't use one.
+            if field in result and len(result[field]) > 0 : dc_values['dc.'+field] = result[field]
+
+        # Construct the target url
+        resource_url = config.get('cdm','public-url') % (result['collection'].lstrip('/'),result['pointer'])
+        logging.debug('%s : %s' % (resource_url, json.dumps(dc_values)))
+
+        # Mint the ARK
+        new_ark = mint_ark(resource_url,dc_values)
+
+        # Update the resource's ARK using Catcher
+        catcher.edit(result['collection'], str(result['pointer']), 'ark', config.get('ezid','ark-resolver')+new_ark)
+
+    logging.debug('CDM Catcher Transactions: '+json.dumps(catcher.transactions))
