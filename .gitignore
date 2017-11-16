@@ -5,3 +5,4 @@ as-coll-mint/config.ini
 *.pdf
 *.production
 *.testing
+as-script-batch-template.py
