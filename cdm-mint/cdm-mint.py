@@ -10,8 +10,8 @@ import urllib, urllib2
 
 # Based on https://gist.github.com/saverkamp/9198310
 
-# cdm-mint.py
-# Mints ARKS and updates CONTENTdm records with the Catcher protocol.
+# cdm-mint.py collection-alias
+# Mints ARKS and updates CONTENTdm records with the Catcher protocol given a collection alias.
 # CDM Catcher documentation at: http://contentdm.org/help6/addons/catcher.asp
 # ***requires SUDS, a third-party SOAP python client: https://fedorahosted.org/suds/***
 
