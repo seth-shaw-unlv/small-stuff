@@ -38,6 +38,9 @@ if __name__ == '__main__':
     with open(sys.argv[2], 'rU') as csvfile:
         reader = csv.DictReader(csvfile, delimiter='|')
         for r in reader:
+            if r['Link to Guide'].find('ark:') > -1:
+		print(r['Coll #']+' already has an ark '+r['Link to Guide'])
+                continue
             if r['Coll #'] in identifier_ark.keys():
                 update_sql += "UPDATE {0} SET {1}='{2}' WHERE {3}='{4}'\n".format(TABLE, LINK, identifier_ark[r['Coll #']].strip(), ID, r['id'])
             else:
