@@ -71,7 +71,7 @@ class Query(object):
             logging.error("Unable to process CONTENTdm wsAPI call (%s): %s - %s - %s" % (query, h.code, h.reason, h.read()))
             return {}
         except ValueError as v:
-            logging.error("Invalid Response to CONTENTdm wsAPI call (%s): %s" % (query, v)
+            logging.error("Invalid Response to CONTENTdm wsAPI call (%s): %s" % (query, v))
             return {}
         # PAGING
         if response['pager']['start']:
