@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import argparse
 import base64
 import ConfigParser
 import csv
@@ -114,6 +115,11 @@ def archivesspace_login():
 
 if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('rid', nargs='+', help="ArchivesSpace record identifiers to run")
+    parser.add_argument('-p', "--update-pdfs", help="Download a new PDF even if an ARK exists.", action="store_true")
+    args = parser.parse_args()
+
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
                         level=logging.INFO)
 
@@ -122,59 +128,61 @@ if __name__ == '__main__':
     configFilePath = r'config.ini'
     config.read(configFilePath)
 
-for rid in sys.argv[1:]:
-    logging.info("Attempting to Mint an ARK for %s" % rid)
-    #sanity Check
-    if not rid.isdigit():
-        logging.warning("Not a digit (can't be a resource identifier): %s" % rid)
-        continue
+    for rid in args.rid:
+        logging.info("Attempting to Mint an ARK for %s" % rid)
+        #sanity Check
+        if not rid.isdigit():
+            logging.warning("Not a digit (can't be a resource identifier): %s" % rid)
+            continue
 
-    resource = archivesspace_api_call('/repositories/%s/resources/%s' % (config.get('archivesspace','repository'),rid))
-    logging.debug('RESOURCE JSON FOR %s: %s' % (rid, json.dumps(resource)))
-    if not resource:
-        continue
-    elif 'error' in resource.keys():
-        logging.warning("Could not find a resource for %s: %s" % (rid,resource['error']))
-        continue
+        resource = archivesspace_api_call('/repositories/%s/resources/%s' % (config.get('archivesspace','repository'),rid))
+        logging.debug('RESOURCE JSON FOR %s: %s' % (rid, json.dumps(resource)))
+        if not resource:
+            continue
+        elif 'error' in resource.keys():
+            logging.warning("Could not find a resource for %s: %s" % (rid,resource['error']))
+            continue
 
-    #form the identifier
-    id_separator = '-'
-    identifier = resource['id_0']
-    if 'id_1' in resource.keys():
-        identifier += id_separator + resource['id_1']
-    if 'id_2' in resource.keys():
-        identifier += id_separator + resource['id_2']
-    if 'id_3' in resource.keys():
-        identifier += id_separator + resource['id_3']
-    # MINT the ark
-    if 'ead_location' in resource.keys() and 'ark:' in resource['ead_location']: # Nevermind then.
-        logging.info('Existing ARK for %s (%s): %s' % (rid,identifier,resource['ead_location']))
-        continue
+        #form the identifier
+        id_separator = '-'
+        identifier = resource['id_0']
+        if 'id_1' in resource.keys():
+            identifier += id_separator + resource['id_1']
+        if 'id_2' in resource.keys():
+            identifier += id_separator + resource['id_2']
+        if 'id_3' in resource.keys():
+            identifier += id_separator + resource['id_3']
 
-    dublin_core = {}
-    dublin_core['_profile'] = 'dc'
-    if 'finding_aid_title' in resource.keys() and resource['finding_aid_title']:
-        dublin_core['dc.title'] = resource['finding_aid_title']
-    elif 'title' in resource.keys() and resource['title']:
-        dublin_core['dc.title'] = resource['title']
-    dublin_core['dc.type'] = 'finding aids'
-    dublin_core['dc.creator'] = 'University of Nevada, Las Vegas University Libraries'
-    dublin_core['dc.publisher'] = 'University of Nevada, Las Vegas University Libraries'
-    dublin_core['dc.relation'] = identifier
-    if 'finding_aid_date' in resource.keys() and resource['finding_aid_date']:
-        dublin_core['dc.date'] = resource['finding_aid_date'].replace(u'\u00a9', '').strip()
+        # ARKs!
+        if 'ead_location' in resource.keys() and 'ark:' in resource['ead_location']: # ARK exists
+            logging.info('Existing ARK for %s (%s): %s' % (rid,identifier,resource['ead_location']))
+            if not args.update_pdfs: # Download a PDF anyway?
+                continue
+        else: # Mint an ARK
+            dublin_core = {}
+            dublin_core['_profile'] = 'dc'
+            if 'finding_aid_title' in resource.keys() and resource['finding_aid_title']:
+                dublin_core['dc.title'] = resource['finding_aid_title']
+            elif 'title' in resource.keys() and resource['title']:
+                dublin_core['dc.title'] = resource['title']
+            dublin_core['dc.type'] = 'finding aids'
+            dublin_core['dc.creator'] = 'University of Nevada, Las Vegas University Libraries'
+            dublin_core['dc.publisher'] = 'University of Nevada, Las Vegas University Libraries'
+            dublin_core['dc.relation'] = identifier
+            if 'finding_aid_date' in resource.keys() and resource['finding_aid_date']:
+                dublin_core['dc.date'] = resource['finding_aid_date'].replace(u'\u00a9', '').strip()
 
-    ark = '%s/%s' % (config.get('ezid','ark-resolver'),mint_ark(identifier, dublin_core))
+            ark = '%s/%s' % (config.get('ezid','ark-resolver'),mint_ark(identifier, dublin_core))
 
-    logging.info('Updating the EAD Location for %s' % rid)
-    resource['ead_location'] = ark
-    archivesspace_api_call('/repositories/%s/resources/%s' % (
-                config.get('archivesspace', 'repository'),rid),
-            'POST', json.dumps(resource))
+            logging.info('Updating the EAD Location for %s' % rid)
+            resource['ead_location'] = ark
+            archivesspace_api_call('/repositories/%s/resources/%s' % (
+                        config.get('archivesspace', 'repository'),rid),
+                    'POST', json.dumps(resource))
+        # PDFs
+        logging.info('Generating the PDF for %s (%s)' % (rid,identifier))
+        if not os.path.isdir(config.get('pdf','export-location')):
+            os.makedirs(os.path.normpath(config.get('pdf','export-location')))
 
-    logging.info('Generating the PDF for %s (%s)' % (rid,identifier))
-    if not os.path.isdir(config.get('pdf','export-location')):
-        os.makedirs(os.path.normpath(config.get('pdf','export-location')))
-
-    with open(os.path.normpath('%s/%s.pdf' % (config.get('pdf','export-location'), identifier )), "wb") as local_file:
-        local_file.write(archivesspace_api_call("/repositories/%s/resource_descriptions/%s.pdf" % (config.get('archivesspace', 'repository'), rid ), as_obj = False).read())
+        with open(os.path.normpath('%s/%s.pdf' % (config.get('pdf','export-location'), identifier )), "wb") as local_file:
+            local_file.write(archivesspace_api_call("/repositories/%s/resource_descriptions/%s.pdf" % (config.get('archivesspace', 'repository'), rid ), as_obj = False).read())
