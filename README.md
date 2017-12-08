@@ -7,7 +7,7 @@ One script to batch mint EZIDs for resources in ArchivesSpace and another to gen
 
 ## as-export-csv
 
-*In Progress* Script to export Agents in a CSV via the API since the existing export is unusable.
+Script to export Agents in a CSV via the API since the existing export is unusable.
 
 ## migrate-locations-as
 
@@ -16,3 +16,7 @@ Scripts used in exploring the option of moving from a locations management sprea
 ## ead-numbered-components_to_tsv.xsl
 
 An XSLT for creating a TSV file of container titles from an EAD with numbered components.
+
+## cdm-mint
+
+Script to mint ARKs for every item in a CONTENTdm collection. (Uses the Catcher Service.)
