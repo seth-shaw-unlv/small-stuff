@@ -14,3 +14,4 @@ wsAPI-url = https://yourcollection.yourorgname.org
 username = johndoe
 password = password123
 license = 123456789abcdefghijk
+ark-field = accrub

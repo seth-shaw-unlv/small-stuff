@@ -26,6 +26,12 @@ class Catcher(object):
         self.password = password
         self.license = license
 
+    def checkLogin(self):
+        transaction = self.client.service.getCONTENTdmCatalog(self.url,self.user,self.password,self.license)
+        if '<title>401 Unauthorized</title>' in transaction:
+            return False
+        return True
+
     def processCONTENTdm(self, action, alias, metadata):
     # function to connect to CatcherServices and process metadata updates
         transaction = self.client.service.processCONTENTdm(action, self.url, self.user, self.password, self.license, alias, metadata)
@@ -103,7 +109,7 @@ def mint_ark(target, dublin_core={}):
     request.add_data(data.encode("UTF-8"))
 
     try:
-        logging.debug('Request URL: %s Data: %s'%(request.get_full_url(),requests.get_data()))
+        logging.debug('Request URL: %s Data: %s'%(request.get_full_url(),request.get_data()))
         response = urllib2.urlopen(request)
         answer = response.read()
         if answer.startswith('success'):
@@ -145,13 +151,19 @@ if __name__ == '__main__':
                       config.get('cdm','license')
                      )
 
+    # Check login
+    if not catcher.checkLogin():
+        sys.exit("Could not connect to the catcher service.\nPease check your connection settings (catcher-url, username, password, and license).")
+
+    # Which field holds the ARK?
+    ark_field = config.get('cdm','ark-field')
     # Gather all the items in a CONTENTdm collection
     dmQuery = Query(config.get('cdm','wsAPI-url'))
 
-    for result in dmQuery.query(alias,'0','!'.join(dc_profile)+'!ark','0',3):
+    for result in dmQuery.query(alias,'0','!'.join(dc_profile)+'!accrub','0',3):
         # Next if it has an ARK
-        if 'ark' in result and 'ark:' in result['ark']:
-            logging.info('Resource %s in %s already has an ARK (%s); skipping...' % (result['pointer'],result['collection'],result['ark']))
+        if ark_field in result and 'ark:' in result[ark_field]:
+            logging.info('Resource %s in %s already has an ARK (%s); skipping...' % (result['pointer'],result['collection'],result[ark_field]))
             continue
 
         # remove the blank DC fields
@@ -168,6 +180,6 @@ if __name__ == '__main__':
         new_ark = mint_ark(resource_url,dc_values)
 
         # Update the resource's ARK using Catcher
-        catcher.edit(result['collection'], str(result['pointer']), 'ark', config.get('ezid','ark-resolver')+new_ark)
+        catcher.edit(result['collection'], str(result['pointer']), ark_field, config.get('ezid','ark-resolver')+new_ark)
 
-    logging.debug('CDM Catcher Transactions: '+json.dumps(catcher.transactions))
+    logging.info('CDM Catcher Transactions: '+json.dumps(catcher.transactions))
