@@ -160,7 +160,7 @@ if __name__ == '__main__':
     # Gather all the items in a CONTENTdm collection
     dmQuery = Query(config.get('cdm','wsAPI-url'))
 
-    for result in dmQuery.query(alias,'0','!'.join(dc_profile)+'!accrub','0',3):
+    for result in dmQuery.query(alias,'0','!'.join(dc_profile)+'!accrub'):
         # Next if it has an ARK
         if ark_field in result and 'ark:' in result[ark_field]:
             logging.info('Resource %s in %s already has an ARK (%s); skipping...' % (result['pointer'],result['collection'],result[ark_field]))
