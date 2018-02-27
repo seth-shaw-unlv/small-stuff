@@ -132,6 +132,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("alias", help="a CONTENTdm collection alias", nargs='+')
     parser.add_argument("-q","--query", help='a CONTENTdm dmQuery "searchstrings" to narrow items for minting. E. g., "origin^Donn%%20Arden%%20Papers^exact".')
+    parser.add_argument("-k","--ark-field", help='the CONTENTdm field to use for the object ARKs (overrides config.ini)')
     parser.add_argument("-v","--verbosity", help="change output verbosity: DEBUG, INFO (default), ERROR")
     parser.add_argument("-d","--dry", help="doesn't mint or update, used to test searchstrings", action="store_true")
     args = parser.parse_args()
@@ -176,6 +177,9 @@ if __name__ == '__main__':
 
     # Which field holds the ARK?
     ark_field = config.get('cdm','ark-field')
+    if args.ark_field:
+        ark_field = args.ark_field
+
     # Gather all the items in a CONTENTdm collection
     dmQuery = Query(config.get('cdm','wsAPI-url'))
 
@@ -183,7 +187,7 @@ if __name__ == '__main__':
 
         alias = alias.lstrip('/') # The preceding / on an alias is annoying to work with. Chop it off if present.
 
-        for result in dmQuery.query(alias,query,'!'.join(dc_profile)+'!accrub'):
+        for result in dmQuery.query(alias,query,'!'.join(dc_profile)+'!'+ark_field):
             # Next if it has an ARK
             if ark_field in result and 'ark:' in result[ark_field]:
                 logging.info('Resource %s in %s already has an ARK (%s); skipping...' % (result['pointer'],result['collection'],result[ark_field]))
