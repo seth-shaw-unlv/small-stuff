@@ -5,7 +5,7 @@ import base64
 import ConfigParser
 import json
 import logging
-import sys
+import argparse, sys
 import urllib, urllib2
 
 # Based on https://gist.github.com/saverkamp/9198310
@@ -129,18 +129,37 @@ def mint_ark(target, dublin_core={}):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) < 2 : sys.exit('Please provide a collection alias')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("alias", help="a CONTENTdm collection alias", nargs='+')
+    parser.add_argument("-q","--query", help='a CONTENTdm dmQuery "searchstrings" to narrow items for minting. E. g., "origin^Donn%%20Arden%%20Papers^exact".')
+    parser.add_argument("-v","--verbosity", help="change output verbosity: DEBUG, INFO (default), ERROR")
+    parser.add_argument("-d","--dry", help="doesn't mint or update, used to test searchstrings", action="store_true")
+    args = parser.parse_args()
 
-    alias = sys.argv[1].lstrip('/') # The preceding / on an alias is annoying to work with. Chop it off if present.
+    # if len(sys.argv) < 2 : sys.exit('Please provide a collection alias')
+
+    # alias = sys.argv[1].lstrip('/') # The preceding / on an alias is annoying to work with. Chop it off if present.
 
     # Configuration
+    verbosity = logging.INFO
+    if args.verbosity:
+        if args.verbosity == 'DEBUG':
+            verbosity = logging.DEBUG
+        if args.verbosity == 'INFO': # Redundant, I know, but it keeps the list clean
+            verbosity = logging.INFO
+        if args.verbosity == 'ERROR':
+            verbosity = logging.ERROR
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
-                        level=logging.INFO)
+                        level=verbosity)
 
     global config
     config = ConfigParser.ConfigParser()
     configFilePath = r'config.ini'
     config.read(configFilePath)
+
+    query = '0'
+    if args.query:
+        query = args.query
 
     dc_profile = ['title','creator','contributor','publisher','date','extent','format','type','relation']
 
@@ -160,26 +179,32 @@ if __name__ == '__main__':
     # Gather all the items in a CONTENTdm collection
     dmQuery = Query(config.get('cdm','wsAPI-url'))
 
-    for result in dmQuery.query(alias,'0','!'.join(dc_profile)+'!accrub'):
-        # Next if it has an ARK
-        if ark_field in result and 'ark:' in result[ark_field]:
-            logging.info('Resource %s in %s already has an ARK (%s); skipping...' % (result['pointer'],result['collection'],result[ark_field]))
-            continue
+    for alias in args.alias:
 
-        # remove the blank DC fields
-        dc_values = dict()
-        for field in dc_profile:
-            # NOTE: the EZID service requires a 'dc.' prefix whereas CDM doesn't use one.
-            if field in result and len(result[field]) > 0 : dc_values['dc.'+field] = result[field]
+        alias = alias.lstrip('/') # The preceding / on an alias is annoying to work with. Chop it off if present.
 
-        # Construct the target url
-        resource_url = config.get('cdm','public-url') % (result['collection'].lstrip('/'),result['pointer'])
-        logging.debug('%s : %s' % (resource_url, json.dumps(dc_values)))
+        for result in dmQuery.query(alias,query,'!'.join(dc_profile)+'!accrub'):
+            # Next if it has an ARK
+            if ark_field in result and 'ark:' in result[ark_field]:
+                logging.info('Resource %s in %s already has an ARK (%s); skipping...' % (result['pointer'],result['collection'],result[ark_field]))
+                continue
 
-        # Mint the ARK
-        new_ark = mint_ark(resource_url,dc_values)
+            # remove the blank DC fields
+            dc_values = dict()
+            for field in dc_profile:
+                # NOTE: the EZID service requires a 'dc.' prefix whereas CDM doesn't use one.
+                if field in result and len(result[field]) > 0 : dc_values['dc.'+field] = result[field]
 
-        # Update the resource's ARK using Catcher
-        catcher.edit(result['collection'], str(result['pointer']), ark_field, config.get('ezid','ark-resolver')+new_ark)
+            # Construct the target url
+            resource_url = config.get('cdm','public-url') % (result['collection'].lstrip('/'),result['pointer'])
+            logging.debug('%s : %s' % (resource_url, json.dumps(dc_values)))
+
+            # Mint the ARK
+            if args.dry:
+                logging.info('TESTING, would mint an ark for %s' % (resource_url))
+            else:
+                new_ark = mint_ark(resource_url,dc_values)
+                # Update the resource's ARK using Catcher
+                catcher.edit(result['collection'], str(result['pointer']), ark_field, config.get('ezid','ark-resolver')+new_ark)
 
     logging.info('CDM Catcher Transactions: '+json.dumps(catcher.transactions))
