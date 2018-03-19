@@ -8,7 +8,6 @@ import argparse, sys
 import urllib, urllib2
 
 """
-[INCOMPLETE/DRAFT]
 Migrate CONTENTdm digital objects to ArchivesSpace
 
 Assuming the CONTENTdm digital object's title is the same as an Archival Object
@@ -16,7 +15,7 @@ in ArchivesSpace, we can create a Digital Object in ArchivesSpace with either
 the CONTENTdm URI or an ARK and link it to the Archival Object.
 
 @author Seth Shaw
-@date 2018-03-??
+@date 2018-03-19
 
 """
 
@@ -24,7 +23,6 @@ class CDMQueryClient(object):
     """A CONTENTdm Query session."""
     def __init__(self, url):
         self.url = url + '/dmwebservices/index.php?q='
-
 
     # dmQuery/oclcsample/0/title!ark/pointer/5/0/1/0/0/1/json
     def query(self, alias, search='0', fields='0', sortby='0', maxrec=1024, start=1, suppress='1', docptr='0', suggest='0', facets='0', unpub='1', denormalize='1' ):
@@ -229,13 +227,13 @@ if __name__ == '__main__':
             if not cid_field in result:
                 logging.info('SKIPPING: no Collection ID (%s) for %s/id/%d' % (cid_field,result['collection'],result['pointer']))
                 continue
-            logging.debug('YEAH! %s/id/%s (%s:%s)' % (result['collection'],result['pointer'],current_cid,current_as_rid))
+            
             # Query ArchivesSpace for archival objects (ao) with matching title and collection URI (root record)
             ao_query = '{"query":{"op":"AND","subqueries":[{"field":"title","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"archival_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (urllib.quote_plus(result['title'].replace('"','\\"').replace('\n', '').replace('\r', '')))
             archival_objects = aspace_client.api_call('/repositories/%s/search?page=1&aq=%s&root_record=%s' % (repository,ao_query,current_as_rid))
 
             if not archival_objects['results']:
-                logging.info('SKIPPING: Could not find title ("%s") in resource %s for %s/id/%s' % (result['title'],current_as_rid,alias,result['pointer']))
+                logging.info('SKIPPING: Could not find title "%s" in resource %s for %s/id/%s' % (result['title'],current_as_rid,alias,result['pointer']))
                 continue
             # Check to see if we have different URIs, or multiple of the same
             ao_uris = list()
@@ -243,7 +241,7 @@ if __name__ == '__main__':
                 ao_uris.append(ao['uri'])
             ao_uris = set(ao_uris)
             if len(ao_uris) > 1:
-                logging.info('SKIPPING: Found multiple Archival Objects (%s) with title "%s" in resource %s for %s/id/%s'% (','.join(ao_uris),result['title'],current_as_rid,alias,result['pointer']))
+                logging.info('SKIPPING: multiple Archival Objects with title "%s" in resource %s for %s/id/%s: %s'% (result['title'],current_as_rid,alias,result['pointer'],','.join(ao_uris)))
                 continue
             # Build a clean copy from search results json field
             archival_object = json.loads(archival_objects['results'][0]['json'])
@@ -252,7 +250,7 @@ if __name__ == '__main__':
             ado = {'title':result['title'],'digital_object_id':result[do_field],'publish':True,'file_versions':[{'file_uri':result[ark_field],'publish':True,'is_representative':True}]}
             ado_uri = 'FAKE/URI' # Incase the DRY option is enabled
             if dry:
-                logging.info('DRY: Would create AS digital object: %s' % (json.dumps(ado)))
+                logging.debug('DRY: Would create AS digital object: %s' % (json.dumps(ado)))
             else:
                 ado_response = aspace_client.api_call('/repositories/%s/digital_objects' % (repository),'POST', ado)
                 if not 'uri' in ado_response:
@@ -261,6 +259,7 @@ if __name__ == '__main__':
                 ado_uri = ado_response['uri']
 
             # Update the Archival Object
+            # TODO: (Assuming we ignore that the AS digital object already existed.) Add checking to make sure we don't already have a matching instance
             ado_instance = {'instance_type':'digital_object','digital_object':{'ref':ado_uri}}
             archival_object['instances'].append(ado_instance)
             if dry:
