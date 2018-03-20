@@ -6,6 +6,7 @@ repository = 2
 
 [cdm]
 wsAPI-url = https://server00000.contentdm.oclc.org
+public-url = https://client0000.contentdm.oclc.org/digital/collection/%s/id/%d
 ark-field = object
 collid-field = sourca
 doid-field = identi
