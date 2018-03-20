@@ -190,9 +190,7 @@ if __name__ == '__main__':
 
     # # Limit by AS collection id?
     query = '%s^Image+ID^exact' % (iid_field)
-    # if args.collection_id:
-    #     query = "%s^%s^exact" % (cid_field,args.collection_id)
-    #
+
     # Initialize the query client
     dmQuery = CDMQueryClient(config.get('cdm','wsAPI-url'))
 
