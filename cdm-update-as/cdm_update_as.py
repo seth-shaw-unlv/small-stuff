@@ -26,28 +26,32 @@ class CDMQueryClient(object):
 
     # dmQuery/oclcsample/0/title!ark/pointer/5/0/1/0/0/1/json
     def query(self, alias, search='0', fields='0', sortby='0', maxrec=1024, start=1, suppress='1', docptr='0', suggest='0', facets='0', unpub='1', denormalize='1' ):
-        """ Returns an array of search results as dicts. """
+        """ Generator of search results. """
         alias = alias.lstrip('/')
-        query= 'dmQuery/'+'/'.join((alias,search,fields,sortby,str(maxrec),str(start),suppress,docptr,suggest,facets,unpub,denormalize)) + '/json'
-        logging.debug('Running %s' % (self.url + query))
-        request = urllib2.Request(self.url + query)
 
-        try:
-            response = json.load(urllib2.urlopen(request))
-        except urllib2.HTTPError as h:
-            logging.error("Unable to process CONTENTdm wsAPI call (%s): %s - %s - %s" % (query, h.code, h.reason, h.read()))
-            return {}
-        except ValueError as v:
-            logging.error("Invalid Response to CONTENTdm wsAPI call (%s): %s" % (query, v))
-            return {}
-        # PAGING
-        if response['pager']['start']:
-            start = int(response['pager']['start'])
-        if (maxrec+start) < response['pager']['total']:
-            start += maxrec
-            response['records'].extend(self.query(alias, search, fields, sortby, maxrec, start, suppress, docptr, suggest, facets, unpub, denormalize))
+        more = True
+        while more == True:
+            query= 'dmQuery/'+'/'.join((alias,search,fields,sortby,str(maxrec),str(start),suppress,docptr,suggest,facets,unpub,denormalize)) + '/json'
+            logging.debug('Running %s' % (self.url + query))
+            request = urllib2.Request(self.url + query)
 
-        return response['records']; #object
+            try:
+                response = json.load(urllib2.urlopen(request))
+            except urllib2.HTTPError as h:
+                logging.error("Unable to process CONTENTdm wsAPI call (%s): %s - %s - %s" % (query, h.code, h.reason, h.read()))
+                raise StopIteration
+            except ValueError as v:
+                logging.error("Invalid Response to CONTENTdm wsAPI call (%s): %s" % (query, v))
+                raise StopIteration
+
+            for record in response['records']:
+                yield record
+
+            # Paging
+            if (maxrec+start) < response['pager']['total']:
+                start += maxrec
+            else:
+                more = False
 
 class ASClient(object):
     """An ArchivesSpace Client"""
@@ -227,7 +231,7 @@ if __name__ == '__main__':
             if not cid_field in result:
                 logging.info('SKIPPING: no Collection ID (%s) for %s/id/%d' % (cid_field,result['collection'],result['pointer']))
                 continue
-            
+
             # Query ArchivesSpace for archival objects (ao) with matching title and collection URI (root record)
             ao_query = '{"query":{"op":"AND","subqueries":[{"field":"title","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"archival_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (urllib.quote_plus(result['title'].replace('"','\\"').replace('\n', '').replace('\r', '')))
             archival_objects = aspace_client.api_call('/repositories/%s/search?page=1&aq=%s&root_record=%s' % (repository,ao_query,current_as_rid))
