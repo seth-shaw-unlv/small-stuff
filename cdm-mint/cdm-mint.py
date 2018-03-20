@@ -57,36 +57,39 @@ class Catcher(object):
             metadata.metadataList.metadata = [metadata1, metadata2]
         return metadata
 
-class Query(object):
+class CDMQueryClient(object):
     """A CONTENTdm Query session."""
     def __init__(self, url):
         self.url = url + '/dmwebservices/index.php?q='
 
-
     # dmQuery/oclcsample/0/title!ark/pointer/5/0/1/0/0/1/json
     def query(self, alias, search='0', fields='0', sortby='0', maxrec=1024, start=1, suppress='1', docptr='0', suggest='0', facets='0', unpub='1', denormalize='1' ):
-        """ Returns an array of search results as dicts. """
+        """ Generator of search results. """
         alias = alias.lstrip('/')
-        query= 'dmQuery/'+'/'.join((alias,search,fields,sortby,str(maxrec),str(start),suppress,docptr,suggest,facets,unpub,denormalize)) + '/json'
-        logging.debug('Running %s' % (self.url + query))
-        request = urllib2.Request(self.url + query)
 
-        try:
-            response = json.load(urllib2.urlopen(request))
-        except urllib2.HTTPError as h:
-            logging.error("Unable to process CONTENTdm wsAPI call (%s): %s - %s - %s" % (query, h.code, h.reason, h.read()))
-            return {}
-        except ValueError as v:
-            logging.error("Invalid Response to CONTENTdm wsAPI call (%s): %s" % (query, v))
-            return {}
-        # PAGING
-        if response['pager']['start']:
-            start = int(response['pager']['start'])
-        if (maxrec+start) < response['pager']['total']:
-            start += maxrec
-            response['records'].extend(self.query(alias, search, fields, sortby, maxrec, start, suppress, docptr, suggest, facets, unpub, denormalize))
+        more = True
+        while more == True:
+            query= 'dmQuery/'+'/'.join((alias,search,fields,sortby,str(maxrec),str(start),suppress,docptr,suggest,facets,unpub,denormalize)) + '/json'
+            logging.debug('Running %s' % (self.url + query))
+            request = urllib2.Request(self.url + query)
 
-        return response['records']; #object
+            try:
+                response = json.load(urllib2.urlopen(request))
+            except urllib2.HTTPError as h:
+                logging.error("Unable to process CONTENTdm wsAPI call (%s): %s - %s - %s" % (query, h.code, h.reason, h.read()))
+                raise StopIteration
+            except ValueError as v:
+                logging.error("Invalid Response to CONTENTdm wsAPI call (%s): %s" % (query, v))
+                raise StopIteration
+
+            for record in response['records']:
+                yield record
+
+            # Paging
+            if (maxrec+start) < response['pager']['total']:
+                start += maxrec
+            else:
+                more = False
 
 
 # who_what_when is a dict with the keys who, what, and when. All other keys are ignored.
@@ -181,7 +184,7 @@ if __name__ == '__main__':
         ark_field = args.ark_field
 
     # Gather all the items in a CONTENTdm collection
-    dmQuery = Query(config.get('cdm','wsAPI-url'))
+    dmQuery = CDMQueryClient(config.get('cdm','wsAPI-url'))
 
     for alias in args.alias:
 
