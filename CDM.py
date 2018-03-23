@@ -1,7 +1,6 @@
 "CONTENTdm (CDM) Module"
 
 from suds.client import Client
-import ConfigParser
 import json
 import logging
 import urllib, urllib2
