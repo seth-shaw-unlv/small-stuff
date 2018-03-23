@@ -6,3 +6,4 @@ as-coll-mint/config.ini
 *.production
 *.testing
 as-script-batch-template.py
+*.pyc
