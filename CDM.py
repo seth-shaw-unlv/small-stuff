@@ -55,13 +55,13 @@ class QueryClient(object):
         self.url = url + '/dmwebservices/index.php?q='
 
     # dmQuery/oclcsample/0/title!ark/pointer/5/0/1/0/0/1/json
-    def query(self, alias, search='0', fields='0', sortby='0', maxrec=1024, start=1, suppress='1', docptr='0', suggest='0', facets='0', unpub='1', denormalize='1' ):
+    def query(self, alias, search='0', fields=['0'], sortby='0', maxrec=1024, start=1, suppress='1', docptr='0', suggest='0', facets='0', unpub='1', denormalize='1' ):
         """ Generator of search results. """
         alias = alias.lstrip('/')
 
         more = True
         while more == True:
-            query= 'dmQuery/'+'/'.join((alias,search,fields,sortby,str(maxrec),str(start),suppress,docptr,suggest,facets,unpub,denormalize)) + '/json'
+            query= 'dmQuery/'+'/'.join((alias,search,'!'.join(fields),sortby,str(maxrec),str(start),suppress,docptr,suggest,facets,unpub,denormalize)) + '/json'
             logging.debug('Running %s' % (self.url + query))
             request = urllib2.Request(self.url + query)
 
