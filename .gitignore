@@ -7,3 +7,4 @@ as-coll-mint/config.ini
 *.testing
 as-script-batch-template.py
 *.pyc
+*.prod
