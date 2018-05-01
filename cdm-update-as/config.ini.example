@@ -10,3 +10,5 @@ public-url = https://client0000.contentdm.oclc.org/digital/collection/%s/id/%d
 ark-field = object
 collid-field = sourca
 doid-field = identi
+date-single-field = format
+date-range-field = date
