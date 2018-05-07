@@ -10,9 +10,9 @@ ID = 'id_man'
 IDENTIFIER = 'coll_man'
 LINK = 'link_guide'
 
-# SPEC_MAN_MANUSCRIPTS_MAN, id_man, coll_man/link_photos
+# SPEC_MAN_MANUSCRIPTS_MAN, id_man, coll_man, link_guide
 # SPEC_ORAL_HISTORY_SOH, id_soh, coll_number_soh, link_digital_soh
-# SPEC_PC_PHOTOCOLL_PHO, id_pho, coll_number_pho/link_photos_pho
+# SPEC_PC_PHOTOCOLL_PHO, id_pho, coll_number_pho, link_guide_pho
 # SPEC_UNLV_ARCHIVES_UAR, id_uar, link_guide_uar
 
 # ArchivesSpace export
@@ -42,7 +42,7 @@ if __name__ == '__main__':
 		print(r['Coll #']+' already has an ark '+r['Link to Guide'])
                 continue
             if r['Coll #'] in identifier_ark.keys():
-                update_sql += "UPDATE {0} SET {1}='{2}' WHERE {3}='{4}'\n".format(TABLE, LINK, identifier_ark[r['Coll #']].strip(), ID, r['id'])
+                update_sql += "UPDATE {0} SET {1}='{2}' WHERE {3}='{4}';\n".format(TABLE, LINK, identifier_ark[r['Coll #']].strip(), ID, r['id'])
             else:
                 print(r['Coll #']+' is not in ArchivesSpace')
 
