@@ -8,7 +8,7 @@ import argparse, sys
 import urllib, urllib2
 
 """
-Migrate CONTENTdm digital objects to ArchivesSpace
+Create Links to CONTENTdm digital objects in ArchivesSpace
 
 Assuming the CONTENTdm digital object's title is the same as an Archival Object
 in ArchivesSpace, we can create a Digital Object in ArchivesSpace with either
