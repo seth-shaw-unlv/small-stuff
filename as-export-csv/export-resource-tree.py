@@ -37,7 +37,7 @@ class ASCSV:
             if instances:
                 data.update()
 
-        for i in range(0,5):
+        for i in range(0,6):
             c_level = 'c0'+str(i+1)
             data[c_level] = self.stack[i] if len(self.stack)-i > 0 else ''
 
@@ -169,7 +169,8 @@ if __name__ == '__main__':
     config.read(configFilePath)
 
     out = csv.DictWriter(sys.stdout, dialect=csv.excel,
-                            fieldnames=('uri','c01','c02','c03','c04','c05',
+                            fieldnames=('uri',
+                                        'c01','c02','c03','c04','c05','c06',
                                         'type','date','extent',
                                         'container_1_type','container_1_value',
                                         'container_2_type','container_2_value'),
