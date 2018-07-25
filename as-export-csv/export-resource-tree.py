@@ -179,4 +179,4 @@ if __name__ == '__main__':
     try:
         ascsv.export(sys.argv[1])
     except:
-        print("Could not export resource tree for {0}".format(sys.argv[1]))
+        print("Could not export resource tree for '{0}'. Did you provide a relative URI (e.g. /repositories/2/resources/1)?".format(sys.argv[1]))
