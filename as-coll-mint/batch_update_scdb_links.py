@@ -11,7 +11,7 @@ IDENTIFIER = 'coll_man'
 LINK = 'link_guide'
 
 # SPEC_MAN_MANUSCRIPTS_MAN, id_man, coll_man, link_guide
-# SPEC_ORAL_HISTORY_SOH, id_soh, coll_number_soh, link_digital_soh
+# SPEC_ORAL_HISTORY_SOH, id_soh, coll_number_soh, link_guide_soh, link_digital_soh
 # SPEC_PC_PHOTOCOLL_PHO, id_pho, coll_number_pho, link_guide_pho
 # SPEC_UNLV_ARCHIVES_UAR, id_uar, link_guide_uar
 
