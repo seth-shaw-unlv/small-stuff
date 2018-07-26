@@ -11,6 +11,7 @@ minter-url = https://ezid.cdlib.org/shoulder
 [cdm]
 catcher-url = http://yourcollection.yourorgname.org
 wsAPI-url = https://yourcollection.yourorgname.org
+public-url = http://yourcollection.yourorgname.org/path/to/collection/%s/id/%d
 username = johndoe
 password = password123
 license = 123456789abcdefghijk
