@@ -24,6 +24,8 @@
     <xsl:template match="/">
 
         <!-- header fields -->
+        <xsl:text>ref_id</xsl:text>
+        <xsl:value-of select="$tab"/>
         <xsl:text>c01</xsl:text>
         <xsl:value-of select="$tab"/>
         <xsl:text>c02</xsl:text>
@@ -52,11 +54,14 @@
          -->
         <xsl:value-of select="$newline"/>
 
-        <xsl:apply-templates select="//ead:c02"/>
+        <xsl:apply-templates select="//ead:c01"/>
 
     </xsl:template>
 
-    <xsl:template match="ead:c02 | ead:c03 | ead:c04 | ead:c05">
+    <xsl:template match="ead:c01 | ead:c02 | ead:c03 | ead:c04 | ead:c05">
+
+        <xsl:value-of select="normalize-space(@id)"/>
+        <xsl:value-of select="$tab"/>
 
         <!-- I would rather this be recursive, but it works. -->
         <xsl:choose>
@@ -102,6 +107,14 @@
                 <xsl:value-of select="$tab"/>
                 <xsl:value-of select="$tab"/>
             </xsl:when>
+            <xsl:when test="name() = 'c01'">
+                <xsl:value-of select="normalize-space(ead:did/ead:unittitle)"/>
+                <xsl:value-of select="$tab"/>
+                <xsl:value-of select="$tab"/>
+                <xsl:value-of select="$tab"/>
+                <xsl:value-of select="$tab"/>
+                <xsl:value-of select="$tab"/>
+            </xsl:when>
         </xsl:choose>
 
         <!-- level -->
@@ -139,6 +152,7 @@
         <xsl:value-of select="$newline"/>
 
         <!-- If a level contains that next level, it will process it. Otherwise it will do nothing. -->
+        <xsl:apply-templates select="ead:c02"/>
         <xsl:apply-templates select="ead:c03"/>
         <xsl:apply-templates select="ead:c04"/>
         <xsl:apply-templates select="ead:c05"/>
