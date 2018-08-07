@@ -26,6 +26,8 @@
         <!-- header fields -->
         <xsl:text>ref_id</xsl:text>
         <xsl:value-of select="$tab"/>
+        <xsl:text>unitid</xsl:text>
+        <xsl:value-of select="$tab"/>
         <xsl:text>c01</xsl:text>
         <xsl:value-of select="$tab"/>
         <xsl:text>c02</xsl:text>
@@ -41,6 +43,8 @@
         <xsl:text>date</xsl:text>
         <xsl:value-of select="$tab"/>
         <xsl:text>extent</xsl:text>
+        <xsl:value-of select="$tab"/>
+        <xsl:text>odd</xsl:text>
         <xsl:value-of select="$tab"/>
         <xsl:text>container 1 type</xsl:text>
         <xsl:value-of select="$tab"/>
@@ -63,6 +67,9 @@
         <xsl:value-of select="normalize-space(@id)"/>
         <xsl:value-of select="$tab"/>
 
+        <xsl:value-of select="normalize-space(ead:did/ead:unitid)"/>
+        <xsl:value-of select="$tab"/>
+        
         <!-- I would rather this be recursive, but it works. -->
         <xsl:choose>
             <xsl:when test="name() = 'c05'">
@@ -131,6 +138,10 @@
         <xsl:text> </xsl:text>
         <xsl:value-of
             select="normalize-space(ead:did/ead:physdesc/ead:extent[@altrender = 'carrier'])"/>
+        <xsl:value-of select="$tab"/>
+        
+        <!-- odd -->
+        <xsl:value-of select="normalize-space(ead:odd/ead:p)"/>
         <xsl:value-of select="$tab"/>
         
         <!-- Top-level container ( box of flat files ) -->
