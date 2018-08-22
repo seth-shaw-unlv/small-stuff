@@ -27,3 +27,7 @@ Two scripts that populate ArchivesSpace digital object instances based on CONTEN
 
 - cdm_update_as.py works by matching CDM object titles and a collection identifier to AS archival object titles and resource identifiers.
 - cdm_update_as_pho.py works by taking an Image ID from a CDM object field and matching it to an AS archival object component ID. *Currently only produces a TSV file of matches and errors. Needs to be updated to use ARKs instead once ARKs are minted for these CDM objects.*
+
+## ezid
+
+Scripts for querying and updating EZID ARKs.
