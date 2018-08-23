@@ -10,7 +10,7 @@ import argparse, sys
 import urllib, urllib2
 
 # who_what_when is a dict with the keys who, what, and when. All other keys are ignored.
-def update_ark(ark, target, dublin_core={}):
+def update_ark(ark, fields={}):
     request = urllib2.Request("%s/%s" % (config.get('ezid','update-url'),ark))
     request.add_header("Content-Type", "text/plain; charset=UTF-8")
 
@@ -20,9 +20,9 @@ def update_ark(ark, target, dublin_core={}):
                                                   )).replace('\n', '')
     request.add_header("Authorization","Basic %s" % encoded_auth)
 
-    #Add target URL
-    data = "_target: %s\n_profile: %s\n" % (target,'dc')
-    for descriptive_item_term, descriptive_item_value in dublin_core.iteritems():
+    #Add profile
+    data = "_profile: %s\n" % ('dc')
+    for descriptive_item_term, descriptive_item_value in fields.iteritems():
         data += '%s: %s\n' % (descriptive_item_term, descriptive_item_value)
 
     request.add_data(data.encode("UTF-8"))
@@ -33,7 +33,7 @@ def update_ark(ark, target, dublin_core={}):
         answer = response.read()
         if answer.startswith('success'):
             code,ark = answer.split(": ")
-            logging.info('Updated ARK for %s : %s' % (target,ark))
+            logging.debug('Updated ARK: %s' % (ark))
             return ark
         else:
             logging.error("Can't update ark: %s", answer)
@@ -45,6 +45,42 @@ def update_ark(ark, target, dublin_core={}):
           if not response.endswith("\n"): response += "\n"
           logging.error("Can't update ark. Response: %s", response)
 
+def mint_ark(fields={}):
+    request = urllib2.Request("%s/%s" % (config.get('ezid','minter-url'),
+                              config.get('ezid','ark-shoulder')))
+    request.add_header("Content-Type", "text/plain; charset=UTF-8")
+
+    #Authentication
+    encoded_auth = base64.encodestring('%s:%s' % (config.get('ezid','username'),
+                                                  config.get('ezid','password')
+                                                  )).replace('\n', '')
+    request.add_header("Authorization","Basic %s" % encoded_auth)
+
+    #Add profile
+    data = "_profile: %s\n" % ('dc')
+    for descriptive_item_term, descriptive_item_value in fields.iteritems():
+        data += '%s: %s\n' % (descriptive_item_term, descriptive_item_value)
+
+    request.add_data(data.encode("UTF-8"))
+
+    try:
+        logging.debug('Request URL: %s Data: %s'%(request.get_full_url(),request.get_data()))
+        response = urllib2.urlopen(request)
+        answer = response.read()
+        if answer.startswith('success'):
+            code,ark = answer.split(": ")
+            logging.debug('Minted ARK: %s' % (ark))
+            return ark
+        else:
+            logging.error("Can't mint ark: %s", answer)
+            return ''
+    except urllib2.HTTPError, e:
+        logging.error("%d %s\n" % (e.code, e.msg))
+        if e.fp != None:
+          response = e.fp.read()
+          if not response.endswith("\n"): response += "\n"
+          logging.error("Can't mint ark. Response: %s", response)
+
 
 if __name__ == '__main__':
 
@@ -53,10 +89,6 @@ if __name__ == '__main__':
     parser.add_argument("-v","--verbosity", help="change output verbosity: DEBUG, INFO (default), ERROR")
     parser.add_argument("-d","--dry", help="doesn't mint or update, used to test searchstrings", action="store_true")
     args = parser.parse_args()
-
-    # if len(sys.argv) < 2 : sys.exit('Please provide a collection alias')
-
-    # alias = sys.argv[1].lstrip('/') # The preceding / on an alias is annoying to work with. Chop it off if present.
 
     # Configuration
     verbosity = logging.INFO
@@ -75,24 +107,35 @@ if __name__ == '__main__':
     configFilePath = r'config.ini'
     config.read(configFilePath)
 
+    supported_fields = [
+        'dc.title','dc.type','dc.identifier','dc.date','dc.creator',
+        'dc.contributor','dc.isPartOf','_status','_target'
+        ]
+
     with open(args.csv, 'rU') as csvfile: #'rU' because Mac Excel exports are wierd
         current_as_rid = None
         current_cid = None
         reader = csv.DictReader(csvfile, delimiter='\t')
+        writer = csv.DictWriter(sys.stdout, fieldnames=['_id','_target','_status','dc.identifier','dc.type','dc.title','dc.date','dc.isPartOf','dc.creator','dc.contributor'], extrasaction='ignore')
+        writer.writeheader()
         for row in reader:
-
-            # remove the blank DC fields
+            # only pass supported values
             dc_values = dict()
-            # dc_values['dc.type'] = row['dc_type']
-            dc_values['dc.title'] = row['title']
-            # dc_values['dc.date'] = row['date']
-            dc_values['dc.identifier'] = row['did']
-            dc_values['_status'] = 'public'
+            for field in supported_fields:
+                if field in row:
+                    dc_values[field] = row[field].strip()
 
-            # Mint the ARK
-            if args.dry:
-                # logging.info('TESTING, would update an ark (%s) for %s' % (row['ark'],row['ref_url']))
-                # print json.dumps(row)
-                print("\t".join((row['ark'],row['ref_url'],json.dumps(dc_values))))
-            else:
-                new_ark = update_ark(row['ark'],row['ref_url'],dc_values)
+            if '_id' in row and row['_id']: # Update an ARK
+                # Update the ARK
+                if not args.dry:
+                    update_ark(row['_id'],dc_values)
+
+                dc_values['_id'] = row['_id']
+
+            else: # Mint an ARK
+                if args.dry:
+                    dc_values['_id'] = 'ark:/FAKE_ARK'
+                else:
+                    new_ark = mint_ark(dc_values)
+                    dc_values['_id'] = new_ark
+            writer.writerow(dc_values)
