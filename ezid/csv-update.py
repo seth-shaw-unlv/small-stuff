@@ -109,7 +109,8 @@ if __name__ == '__main__':
 
     supported_fields = [
         'dc.title','dc.type','dc.identifier','dc.date','dc.creator',
-        'dc.contributor','dc.isPartOf','_status','_target'
+        'dc.contributor','dc.description','dc.publisher','dc.rights',
+        'dc.isPartOf','_status','_target'
         ]
 
     with open(args.csv, 'rU') as csvfile: #'rU' because Mac Excel exports are wierd
@@ -123,7 +124,7 @@ if __name__ == '__main__':
             dc_values = dict()
             for field in supported_fields:
                 if field in row:
-                    dc_values[field] = row[field].strip()
+                    dc_values[field] = row[field].decode('utf-8').strip()
 
             if '_id' in row and row['_id']: # Update an ARK
                 # Update the ARK
