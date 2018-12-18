@@ -1,24 +1,24 @@
 #!/usr/bin/python
 
 import base64
-import ConfigParser
+import configparser
 import json
 import logging
 import argparse, sys
-import urllib, urllib2
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 """
 Migrate CONTENTdm digital objects to ArchivesSpace: PHOTOGRAPHS SPECIAL EDITION
 
-Assuming the CONTENTdm digital object's title is the same as an Archival Object
-in ArchivesSpace, we can create a Digital Object in ArchivesSpace with either
-the CONTENTdm URI or an ARK and link it to the Archival Object.
-
-Some photographs have a special compontent ID field we can use to match items,
-but it breaks other stuff, so it gets it's own script.
+Using a CONTENTdm field with a photograph identifier we can search for the
+identifier in ArchivesSpace and create a new Digital Object instance linking
+the ArchivesSpace object to the CONTENTdm object.
 
 @author Seth Shaw
-@date 2018-03-??
+@date 2018-03
+@updated 2018-12
 
 """
 
@@ -36,11 +36,11 @@ class CDMQueryClient(object):
         while more == True:
             query= 'dmQuery/'+'/'.join((alias,search,fields,sortby,str(maxrec),str(start),suppress,docptr,suggest,facets,unpub,denormalize)) + '/json'
             logging.debug('Running %s' % (self.url + query))
-            request = urllib2.Request(self.url + query)
+            request = Request(self.url + query)
 
             try:
-                response = json.load(urllib2.urlopen(request))
-            except urllib2.HTTPError as h:
+                response = json.load(urlopen(request))
+            except HTTPError as h:
                 logging.error("Unable to process CONTENTdm wsAPI call (%s): %s - %s - %s" % (query, h.code, h.reason, h.read()))
                 raise StopIteration
             except ValueError as v:
@@ -69,17 +69,17 @@ class ASClient(object):
 
         path = self.api_root + path
 
-        # urllib2 will force a call to POST if the data element is provided.
+        # urllib will force a call to POST if the data element is provided.
         # So, a query string must be appended to path if you want a GET
         if method == 'GET':
             if data:
-                request = urllib2.Request(path + '?' + urllib.urlencode(data))
+                request = Request(path + '?' + urlencode(data))
             else:
-                request = urllib2.Request(path)
+                request = Request(path)
         elif method == 'POST':
-            if isinstance(data, dict):
-                data = json.dumps(data)
-            request = urllib2.Request(path, data)
+            # if isinstance(data, dict):
+            #     data = json.dumps(data)
+            request = Request(path, urlencode(data).encode('ascii'))
         else:
             logging.error("Unknown or unused HTTP method: %s" % method)
             return
@@ -87,10 +87,10 @@ class ASClient(object):
         if self.SESSION: #only absent during login.
             request.add_header("X-ArchivesSpace-Session",self.SESSION)
 
-        logging.debug("ArchivesSpace API call (%s;%s): %s %s %s %s" % (path, json.dumps(data), json.dumps(request.header_items()), request.get_method(), request.get_full_url(), request.get_data()) )
+        logging.debug("ArchivesSpace API call (%s;%s): %s %s %s %s" % (path, json.dumps(data), json.dumps(request.header_items()), request.get_method(), request.get_full_url(), request.data) )
         try:
-            response = urllib2.urlopen(request)
-        except urllib2.HTTPError as h:
+            response = urlopen(request)
+        except HTTPError as h:
             logging.error("Unable to process ArchivesSpace API call (%s): %s - %s - %s" % (path, h.code, h.reason, h.read()))
             return {}
         if as_obj:
@@ -125,7 +125,7 @@ class ASClient(object):
 
     def login(self, username, password):
         path = '/users/%s/login' % (username)
-        obj = self.api_call(path,'POST', urllib.urlencode({'password': password }))
+        obj = self.api_call(path,'POST', {'password': password })
         self.SESSION = obj["session"]
 
 if __name__ == '__main__':
@@ -157,7 +157,7 @@ if __name__ == '__main__':
                         level=verbosity)
 
     global config
-    config = ConfigParser.ConfigParser()
+    config = configparser.RawConfigParser()
     configFilePath = r'config.ini'
     config.read(configFilePath)
 
