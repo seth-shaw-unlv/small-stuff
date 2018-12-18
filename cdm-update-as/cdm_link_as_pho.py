@@ -132,9 +132,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("alias", help="a CONTENTdm collection alias", nargs='+')
-    # parser.add_argument("-c","--collection-id", help='an ArchivesSpace resource identifier. E. g., "MS-00425".')
+    parser.add_argument("-c","--collection-id", help='an ArchivesSpace resource identifier. E. g., "MS-00425".')
     parser.add_argument("-i","--image-id-field", help='the CONTENTdm field storing the source image\'s identifier')
-    # parser.add_argument("-k","--ark-field", help='the CONTENTdm field to use for the object ARKs (overrides config.ini)')
+    parser.add_argument("-k","--ark-field", help='the CONTENTdm field to use for the object ARKs (overrides config.ini)')
     parser.add_argument("-o","--digital-object-field", help='the CONTENTdm field to use for the digital object\'s identifier (overrides config.ini)')
     parser.add_argument("-v","--verbosity", help="change output verbosity: DEBUG, INFO (default), ERROR")
     parser.add_argument("-d","--dry", help="doesn't update ArchivesSpace, used for testing", action="store_true")
@@ -165,17 +165,17 @@ if __name__ == '__main__':
     # Will add the ark field, if used, and the collection id field later
     cdm_fields = ['title']
 
-    # # Which field holds the ARK?
-    # ark_field = None
-    # if config.get('cdm','ark-field'):
-    #     ark_field = config.get('cdm','ark-field')
-    # if args.ark_field:
-    #     ark_field = args.ark_field
-    # if ark_field:
-    #     cdm_fields.append(ark_field)
+    # Which field holds the ARK?
+    ark_field = None
+    if config.get('cdm','ark-field'):
+        ark_field = config.get('cdm','ark-field')
+    if args.ark_field:
+        ark_field = args.ark_field
+    if ark_field:
+        cdm_fields.append(ark_field)
 
     # Which field holds the Image Identifier?
-    iid_field = 'sourca'
+    iid_field = 'physic'
     if args.image_id_field:
         iid_field = args.image_id_field
     cdm_fields.append(iid_field)
@@ -189,7 +189,10 @@ if __name__ == '__main__':
     public_url = config.get('cdm','public-url')
 
     # # Limit by AS collection id?
-    query = '%s^Image+ID^exact' % (iid_field)
+    query = '0'
+    if args.collection_id:
+        query = '%s^%s^all^and' % ('source',args.collection_id)
+        cdm_fields.append('source')
 
     # Initialize the query client
     dmQuery = CDMQueryClient(config.get('cdm','wsAPI-url'))
@@ -205,62 +208,74 @@ if __name__ == '__main__':
         alias = alias.lstrip('/') # The preceding / on an alias is annoying to work with. Chop it off if present.
         for result in dmQuery.query(alias,query,'!'.join(cdm_fields), sortby=iid_field):
 
-    #         # REPORT and SKIP if the do has no ARK
-    #         if ark_field and not result[ark_field]:
-    #             logging.info('SKIPPING: no ARK for %s/id/%d (%s:%s)' % (result['collection'],result['pointer'],current_cid,current_as_rid))
-    #             continue
-    #         #  REPORT and SKIP if the do has no title
+            # REPORT and SKIP if the do has no ARK
+            if ark_field and not result[ark_field]:
+                logging.info('SKIPPING: no ARK for %s/id/%d' % (result['collection'],result['pointer']))
+                continue
 
-            # USING CDM URI FOR NOW AS A DEMONSTRATOR. USE ARK FOR PRODUCTION.
-            cdm_uri = public_url % (alias,result['pointer'])
-
+            #  REPORT and SKIP if the do has no title
             if not 'title' in result:
-                # print('\t'.join((cdm_uri,'NO TITLE FOUND',archival_object['uri'],archival_object['display_string'])))
-                result['title'] = 'NO TITLE EXISTS IN CDM'
-                # continue
+                print('SKIPPING: No Title Found for %s/id/%d' % (result['collection'],result['pointer']))
+                continue
 
             # Clean up the Image ID field to match AS
             iid = result[iid_field].rstrip().replace('Image ID: ','').replace('  ',' ').replace(' ', '_')
+            if not iid:
+                print('SKIPPING: No Photo ID Found for %s/id/%d' % (result['collection'],result['pointer']))
+                continue
+
             # Query ArchivesSpace for archival objects (ao) with component idenfifier
             ao_query = '{"query":{"op":"AND","subqueries":[{"field":"component_id","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"archival_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (iid)
             archival_objects = aspace_client.api_call('/repositories/%s/search?page=1&aq=%s' % (repository,ao_query))
 
             if not archival_objects['results']:
-                # logging.info('SKIPPING: Could not find Component ID "%s" in ArchivesSpace for %s/id/%s' % (iid,alias,result['pointer']))
-                print('\t'.join((cdm_uri,result['title'],iid,'NO AO FOUND','NO AO FOUND')))
+                logging.info('SKIPPING: Could not find Component ID "%s" in ArchivesSpace for %s/id/%s' % (iid,alias,result['pointer']))
                 continue
+
             # Check to see if we have different URIs, or multiple of the same
             ao_uris = list()
             for ao in archival_objects['results']:
                 ao_uris.append(ao['uri'])
             ao_uris = set(ao_uris)
             if len(ao_uris) > 1:
-                print('\t'.join((cdm_uri,result['title'].rstrip(),iid,'MULTIPLE AOs: '+','.join(ao_uris),'MULTIPLE TITLES')))
-                # logging.info('SKIPPING: multiple Archival Objects with Component ID "%s" for %s/id/%s: %s'% (iid,alias,result['pointer'],','.join(ao_uris)))
+                logging.info('SKIPPING: multiple Archival Objects with Component ID "%s" for %s/id/%s: %s'% (iid,alias,result['pointer'],','.join(ao_uris)))
                 continue
+
             # Build a clean copy from search results json field
             archival_object = json.loads(archival_objects['results'][0]['json'])
+
             # - IF a single result: update ao in AS with instance link using the CDM URI. **USE ARK for production, this is a DEMONSTRATION!**
             # based on https://github.com/djpillen/bentley_scripts/blob/master/update_archival_object.py
-
-            ado = {'title':result['title'],'digital_object_id':result[do_field],'publish':True,'file_versions':[{'file_uri':cdm_uri,'publish':True,'is_representative':True}]}
+            ado = {'title':result['title'],'digital_object_id':result[do_field],'publish':True,'file_versions':[{'file_uri':result[ark_field],'publish':True,'is_representative':True}]}
             ado_uri = 'FAKE/URI' # Incase the DRY option is enabled
-            print('\t'.join((cdm_uri,result['title'].rstrip(),iid,archival_object['uri'],archival_object['display_string'].rstrip())))
-            # if dry:
-                # logging.debug('DRY: Would create AS digital object: %s' % (json.dumps(ado)))
-            # else:
-            #     ado_response = aspace_client.api_call('/repositories/%s/digital_objects' % (repository),'POST', ado)
-            #     if not 'uri' in ado_response:
-            #         logging.warn('FAILED to create AS digital object %s %s: %s' % ('/repositories/%s/digital_objects' % (repository), ado, json.dumps(ado_response)))
-            #         continue
-            #     ado_uri = ado_response['uri']
-    #
-    #         # Update the Archival Object
-    #         # TODO: (Assuming we ignore that the AS digital object already existed.) Add checking to make sure we don't already have a matching instance
-    #         ado_instance = {'instance_type':'digital_object','digital_object':{'ref':ado_uri}}
-    #         archival_object['instances'].append(ado_instance)
-    #         if dry:
-    #             logging.info('DRY: Would update AS Archival Object %s with new instance %s' % (archival_object['uri'], ado_instance))
-    #         else:
-    #             ao_update_response = aspace_client.api_call(archival_object['uri'],'POST', archival_object)
-    #             logging.info('%s: AS Archival Object %s with AS Digital Object %s for CDM object %s : %s' % (ao_update_response['status'],ao_update_response['id'],ado_uri,result[do_field],result['title']))
+            if dry:
+                logging.debug('DRY: Would create AS digital object: %s' % (json.dumps(ado)))
+            else:
+                ado_response = aspace_client.api_call('/repositories/%s/digital_objects' % (repository),'POST', ado)
+                if not 'uri' in ado_response:
+                    logging.warn('FAILED to create AS digital object %s %s: %s' % ('/repositories/%s/digital_objects' % (repository), ado, json.dumps(ado_response)))
+                    continue
+                ado_uri = ado_response['uri']
+
+            # If the AS AO already has a DO, we assume it is the same match we just identified.
+            has_do = False
+            for instance in archival_object['instances']:
+                if not instance['instance_type'] == 'digital_object':
+                    continue
+                if  instance['digital_object']['ref'] == as_do_uri:
+                    has_do = True
+                    continue
+            if has_do:
+                logging.info('SKIPPING: Archival Object %s already linked to %s'% (archival_object['uri'],ado_uri))
+                continue
+
+            # Update ao in AS with instance link using the ARK
+            # based on https://github.com/djpillen/bentley_scripts/blob/master/update_archival_object.py
+            # Update the Archival Object
+            as_do_instance = {'instance_type':'digital_object','digital_object':{'ref':ado_uri}}
+            archival_object['instances'].append(as_do_instance)
+            if dry:
+                logging.info('DRY: Would update AS Archival Object %s with new instance for %s/id/%d' % (archival_object['uri'],result['collection'],result['pointer']))
+            else:
+                ao_update_response = aspace_client.api_call(archival_object['uri'],'POST', archival_object)
+                logging.info('%s: AS Archival Object %s with AS Digital Object %s for CDM object %s : %s' % (ao_update_response['status'],ao_update_response['id'],as_do_uri,result[do_field],title))
