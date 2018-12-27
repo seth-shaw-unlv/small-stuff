@@ -228,7 +228,7 @@ if __name__ == '__main__':
             ao_query = '{"query":{"op":"AND","subqueries":[{"field":"component_id","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"archival_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (iid)
             archival_objects = aspace_client.api_call('/repositories/%s/search?page=1&aq=%s' % (repository,ao_query))
 
-            if not archival_objects['results']:
+            if not 'results' in archival_objects or not archival_objects['results']:
                 logging.info('SKIPPING: Could not find Component ID "%s" in ArchivesSpace for %s/id/%s' % (iid,alias,result['pointer']))
                 continue
 
