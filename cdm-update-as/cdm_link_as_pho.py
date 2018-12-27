@@ -224,6 +224,28 @@ if __name__ == '__main__':
                 print('SKIPPING: No Photo ID Found for %s/id/%d' % (result['collection'],result['pointer']))
                 continue
 
+            # Find or Create an ArchivesSpace Digital Object
+            # Query ArchivesSpace for archival objects (ao) with component idenfifier
+            ado_uri = 'FAKE/URI' # Incase the DRY option is enabled
+            do_query = '{"query":{"op":"AND","subqueries":[{"field":"digital_object_id","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"digital_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (result[do_field])
+            digital_objects = aspace_client.api_call('/repositories/%s/search?page=1&aq=%s' % (repository,do_query))
+
+            if not 'results' in digital_objects or not digital_objects['results']:
+                ado = {'title':result['title'],'digital_object_id':result[do_field],'publish':True,'file_versions':[{'file_uri':result[ark_field],'publish':True,'is_representative':True}]}
+
+                if dry:
+                    logging.info('DRY: Would create AS digital object: %s' % (result[do_field]))
+                    logging.debug('DRY: New AS digital object JSON: %s' % (json.dumps(ado)))
+                else:
+                    ado_response = aspace_client.api_call('/repositories/%s/digital_objects' % (repository),'POST', ado)
+                    if not 'uri' in ado_response:
+                        logging.warn('FAILED to create AS digital object %s %s: %s' % ('/repositories/%s/digital_objects' % (repository), ado, json.dumps(ado_response)))
+                        continue
+                    ado_uri = ado_response['uri']
+            else:
+                ado = json.loads(digital_objects['results'][0]['json'])
+                ado_uri = ado['uri']
+
             # Query ArchivesSpace for archival objects (ao) with component idenfifier
             ao_query = '{"query":{"op":"AND","subqueries":[{"field":"component_id","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"archival_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (iid)
             archival_objects = aspace_client.api_call('/repositories/%s/search?page=1&aq=%s' % (repository,ao_query))
@@ -243,19 +265,6 @@ if __name__ == '__main__':
 
             # Build a clean copy from search results json field
             archival_object = json.loads(archival_objects['results'][0]['json'])
-
-            # - IF a single result: update ao in AS with instance link using the CDM URI. **USE ARK for production, this is a DEMONSTRATION!**
-            # based on https://github.com/djpillen/bentley_scripts/blob/master/update_archival_object.py
-            ado = {'title':result['title'],'digital_object_id':result[do_field],'publish':True,'file_versions':[{'file_uri':result[ark_field],'publish':True,'is_representative':True}]}
-            ado_uri = 'FAKE/URI' # Incase the DRY option is enabled
-            if dry:
-                logging.debug('DRY: Would create AS digital object: %s' % (json.dumps(ado)))
-            else:
-                ado_response = aspace_client.api_call('/repositories/%s/digital_objects' % (repository),'POST', ado)
-                if not 'uri' in ado_response:
-                    logging.warn('FAILED to create AS digital object %s %s: %s' % ('/repositories/%s/digital_objects' % (repository), ado, json.dumps(ado_response)))
-                    continue
-                ado_uri = ado_response['uri']
 
             # If the AS AO already has a DO, we assume it is the same match we just identified.
             has_do = False
