@@ -191,11 +191,11 @@ if __name__ == '__main__':
         dr_field = args.date_range_field
     cdm_fields.append(dr_field)
 
-    # Which field holds the Digital Object Signle Date?
-    ds_field = config.get('cdm','date-single-field')
-    if args.date_single_field:
-        ds_field = args.date_single_field
-    cdm_fields.append(ds_field)
+    # # Which field holds the Digital Object Single Date?
+    # ds_field = config.get('cdm','date-single-field')
+    # if args.date_single_field:
+    #     ds_field = args.date_single_field
+    # cdm_fields.append(ds_field)
 
     # Limit by AS collection id?
     query = '0'
@@ -241,6 +241,7 @@ if __name__ == '__main__':
             if not 'title' in result:
                 logging.warn('SKIPPING: no Title for %s/id/%d' % (result['collection'],result['pointer']))
                 continue
+            title = result['title'].replace(u"\x27", "'")
             #  REPORT and SKIP if the do has no collection identifier
             if not cid_field in result:
                 logging.warn('SKIPPING: no Collection ID (%s) for %s/id/%d' % (cid_field,result['collection'],result['pointer']))
@@ -249,20 +250,25 @@ if __name__ == '__main__':
             # For CDM date for matching and AS DO creation
             cdm_obj_date = ''
             as_do_date_obj = {}
-            if ds_field in result and result[ds_field]:
-                cdm_obj_date = result[ds_field]
-                if not 'undated' in cdm_obj_date:
-                    as_do_date_obj['date_type'] = 'single'
-                    as_do_date_obj['begin'] = cdm_obj_date
-            elif dr_field in result and result[dr_field]:
+            # if ds_field in result and result[ds_field]:
+            #     cdm_obj_date = result[ds_field]
+                # if not 'undated' in cdm_obj_date:
+                #     as_do_date_obj['date_type'] = 'single'
+                #     as_do_date_obj['begin'] = cdm_obj_date
+            # elif dr_field in result and result[dr_field]:
+            if dr_field in result and result[dr_field]:
                 date_range_array = result[dr_field].split('; ')
-                cdm_obj_date = '%s-%s' % (date_range_array[0],date_range_array[-1])
-                as_do_date_obj['date_type'] = 'inclusive'
-                as_do_date_obj['begin'] = date_range_array[0]
-                as_do_date_obj['end'] = date_range_array[-1]
+                if len(date_range_array) > 1:
+                    cdm_obj_date = '%s-%s' % (date_range_array[0],date_range_array[-1])
+                    as_do_date_obj['date_type'] = 'inclusive'
+                    as_do_date_obj['begin'] = date_range_array[0]
+                    as_do_date_obj['end'] = date_range_array[-1]
+                elif not 'undated' in cdm_obj_date:
+                    as_do_date_obj['date_type'] = 'single'
+                    as_do_date_obj['begin'] = result[dr_field]
 
             # CREATE the AS Digital Object
-            as_do = {'title':result['title'],
+            as_do = {'title':title,
                      'digital_object_id':result[do_field],
                      'publish':True,
                      'file_versions':[{'file_uri':result[ark_field],
@@ -292,13 +298,18 @@ if __name__ == '__main__':
             else:
                 as_do_uri = as_do_response['results'][0]['uri']
                 logging.debug('FOUND: AS DO for %s/id/%s: %s' % (alias,result['pointer'],as_do_uri))
+                # TODO: Check to see if it is already linked.
+                if 'linked_instance_uris' in as_do_response['results'][0] and len(as_do_response['results'][0]['linked_instance_uris']) > 0:
+                    logging.debug('DO for %s/id/%s (%s) already linked to %s' % (alias,result['pointer'],as_do_uri,as_do_response['results'][0]['linked_instance_uris'][0]))
+                    continue
+
 
             # Query ArchivesSpace for archival objects (ao) with matching title and collection URI (root record)
-            ao_query = '{"query":{"op":"AND","subqueries":[{"field":"title","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"archival_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (urllib.quote_plus(result['title'].replace('"','\\"').replace('\n', '').replace('\r', '')))
+            ao_query = '{"query":{"op":"AND","subqueries":[{"field":"title","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"archival_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (urllib.quote_plus(title.replace('"','\\"').replace('\n', '').replace('\r', '')))
             archival_objects = aspace_client.api_call('/repositories/%s/search?page=1&aq=%s&root_record=%s' % (repository,ao_query,current_as_rid))
 
             if not archival_objects['results']:
-                logging.warn ('SKIPPING: Could not find title "%s" in resource %s for %s/id/%s (%s)' % (result['title'],current_as_rid,alias,result['pointer'],as_do_uri))
+                logging.warn ('SKIPPING: Could not find title "%s" in resource %s for %s/id/%s (%s)' % (title,current_as_rid,alias,result['pointer'],as_do_uri))
                 continue
             # Check to see if we have different URIs, or multiple of the same
             ao_objs = list()
@@ -342,20 +353,20 @@ if __name__ == '__main__':
                     result_uris = []
                     for ao in date_matches:
                         result_uris.append(ao['uri'])
-                    logging.warn('SKIPPING: multiple Archival Objects with title "%s" and matching dates (%s) in resource %s for %s/id/%s (%s): %s'% (result['title'],cdm_obj_date,current_as_rid,alias,result['pointer'],as_do_uri,','.join(result_uris)))
+                    logging.warn('SKIPPING: multiple Archival Objects with title "%s" and matching dates (%s) in resource %s for %s/id/%s (%s): %s'% (title,cdm_obj_date,current_as_rid,alias,result['pointer'],as_do_uri,','.join(result_uris)))
                     continue
                 elif len(date_matches) < 1:
                     result_uris = []
                     for ao in ao_objs:
                         result_uris.append(ao['uri'])
-                    logging.warn('SKIPPING: multiple Archival Objects with title "%s" in resource %s for %s/id/%s (%s): %s'% (result['title'],current_as_rid,alias,result['pointer'],as_do_uri,','.join(result_uris)))
+                    logging.warn('SKIPPING: multiple Archival Objects with title "%s" in resource %s for %s/id/%s (%s): %s'% (title,current_as_rid,alias,result['pointer'],as_do_uri,','.join(result_uris)))
                     continue
                 elif len(date_matches) == 1: # Only one matches title and date, reset the result list to match
                     ao_objs = date_matches
 
             # Get a cleaner object reference to use
             as_ao = ao_objs[0]
-            logging.debug('MATCH: Archival Object "%s" (%s) matches CDM "%s" date: %s (%s/id/%s)' % (as_ao['display_string'].replace('\n', '').replace('\r', ''),as_ao['uri'],result['title'],cdm_obj_date,alias,result['pointer']))
+            logging.debug('MATCH: Archival Object "%s" (%s) matches CDM "%s" date: %s (%s/id/%s)' % (as_ao['display_string'].replace('\n', '').replace('\r', ''),as_ao['uri'],title,cdm_obj_date,alias,result['pointer']))
 
             # If the AS AO already has a DO, we assume it is the same match we just identified.
             has_do = False
@@ -378,4 +389,4 @@ if __name__ == '__main__':
                 logging.info('DRY: Would update AS Archival Object %s with new instance %s' % (as_ao['uri'], as_do_instance))
             else:
                 ao_update_response = aspace_client.api_call(as_ao['uri'],'POST', as_ao)
-                logging.info('%s: AS Archival Object %s with AS Digital Object %s for CDM object %s : %s' % (ao_update_response['status'],ao_update_response['id'],as_do_uri,result[do_field],result['title']))
+                logging.info('%s: AS Archival Object %s with AS Digital Object %s for CDM object %s : %s' % (ao_update_response['status'],ao_update_response['id'],as_do_uri,result[do_field],title))
