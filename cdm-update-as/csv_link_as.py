@@ -198,6 +198,7 @@ if __name__ == '__main__':
             if ark_field and not row[ark_field]:
                 logging.warn('SKIPPING: no ARK for %s/id/%d (%s:%s)' % (row['collection'],row['pointer'],current_cid,current_as_rid))
                 continue
+            title = row['title'].replace('&#x27;', "'").replace('&quot;','"')
             #  REPORT and SKIP if the do has no title
             if not 'title' in row:
                 logging.warn('SKIPPING: no Title for %s/id/%d' % (row['collection'],row['pointer']))
@@ -226,7 +227,7 @@ if __name__ == '__main__':
                 as_do_date_obj['end'] = date_range_array[-1]
 
             # CREATE the AS Digital Object
-            as_do = {'title':row['title'],
+            as_do = {'title':title,
                      'digital_object_id':row[do_field],
                      'publish':True,
                      'file_versions':[{'file_uri':row[ark_field],
@@ -258,12 +259,11 @@ if __name__ == '__main__':
                 logging.debug('FOUND: AS DO for %s: %s' % (row[do_field],as_do_uri))
 
             # Query ArchivesSpace for archival objects (ao) with matching title and collection URI (root record)
-            ao_query = '{"query":{"op":"AND","subqueries":[{"field":"title","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"archival_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (urllib.quote_plus(row['title'].replace('"','\\"').replace('\n', '').replace('\r', '')))
+            ao_query = '{"query":{"op":"AND","subqueries":[{"field":"title","value":"%s","jsonmodel_type":"field_query","negated":false,"literal":true},{"field":"primary_type","value":"archival_object","jsonmodel_type":"boolean_field_query"}],"jsonmodel_type":"boolean_query"},"jsonmodel_type":"advanced_query"}' % (urllib.quote_plus(title.replace('"','\\"').replace('\n', '').replace('\r', '')))
             archival_objects = aspace_client.api_call('/repositories/%s/search?page=1&aq=%s&root_record=%s' % (repository,ao_query,current_as_rid))
 
             if not archival_objects['results']:
-                # logging.warn ('SKIPPING: Could not find title "%s" in resource %s for %s (%s)' % (row['title'],current_as_rid,row[do_field],as_do_uri))
-                logging.warn ('SKIPPING: Could not find title "%s" in resource %s for %s' % (row['title'],current_as_rid,row[do_field]))
+                logging.warn ('SKIPPING: Could not find title "%s" in resource %s for %s (%s)' % (title,current_as_rid,row[do_field],as_do_uri))
                 continue
             # Check to see if we have different URIs, or multiple of the same
             ao_objs = list()
@@ -305,20 +305,20 @@ if __name__ == '__main__':
                     result_uris = []
                     for ao in date_matches:
                         result_uris.append(ao['uri'])
-                    logging.warn('SKIPPING: multiple Archival Objects with title "%s" and matching dates (%s) in resource %s for %s (%s): %s'% (row['title'],cdm_obj_date,current_as_rid,row[do_field],as_do_uri,','.join(result_uris)))
+                    logging.warn('SKIPPING: multiple Archival Objects with title "%s" and matching dates (%s) in resource %s for %s (%s): %s'% (title,cdm_obj_date,current_as_rid,row[do_field],as_do_uri,','.join(result_uris)))
                     continue
                 elif len(date_matches) < 1:
                     result_uris = []
                     for ao in ao_objs:
                         result_uris.append(ao['uri'])
-                    logging.warn('SKIPPING: multiple Archival Objects with title "%s" in resource %s for %s (none of the dates match "%s"): %s'% (row['title'],current_as_rid,row[do_field],cdm_obj_date,','.join(result_uris)))
+                    logging.warn('SKIPPING: multiple Archival Objects with title "%s" in resource %s for %s (none of the dates match "%s"): %s'% (title,current_as_rid,row[do_field],cdm_obj_date,','.join(result_uris)))
                     continue
                 elif len(date_matches) == 1: # Only one matches title and date, reset the result list to match
                     ao_objs = date_matches
 
             # Get a cleaner object reference to use
             as_ao = ao_objs[0]
-            logging.debug('MATCH: Archival Object "%s" (%s) matches CDM "%s" date: %s (%s)' % (as_ao['display_string'].replace('\n', '').replace('\r', ''),as_ao['uri'],row['title'],cdm_obj_date,row[do_field]))
+            logging.debug('MATCH: Archival Object "%s" (%s) matches CDM "%s" date: %s (%s)' % (as_ao['display_string'].replace('\n', '').replace('\r', ''),as_ao['uri'],title,cdm_obj_date,row[do_field]))
 
             # If the AS AO already has a DO, we assume it is the same match we just identified.
             has_do = False
@@ -341,4 +341,7 @@ if __name__ == '__main__':
                 logging.info('DRY: Would update AS Archival Object %s with new instance %s' % (as_ao['uri'], as_do_instance))
             else:
                 ao_update_response = aspace_client.api_call(as_ao['uri'],'POST', as_ao)
-                logging.info('%s: AS Archival Object %s with AS Digital Object %s for CDM object %s : %s' % (ao_update_response['status'],ao_update_response['id'],as_do_uri,row[do_field],row['title']))
+                if 'status' in ao_update_response:
+                    logging.info('%s: AS Archival Object %s with AS Digital Object %s for CDM object %s : %s' % (ao_update_response['status'],ao_update_response['id'],as_do_uri,row[do_field],title))
+                else:
+                    logging.info('Unable to update AS Archival Object %s with AS Digital Object %s for CDM object %s : %s' % (as_ao['uri'],as_do_uri,row[do_field],title))
