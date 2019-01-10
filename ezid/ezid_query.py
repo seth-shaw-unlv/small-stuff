@@ -35,7 +35,7 @@ if __name__ == '__main__':
     with open(sys.argv[1], 'rU') as csvfile: #'rU' because Mac Excel exports are wierd
 
         reader = csv.DictReader(csvfile)
-        writer = csv.DictWriter(sys.stdout, fieldnames=['success','_target','_status','dc.type','dc.title','dc.date','dc.relation','dc.creator','dc.contributor'], extrasaction='ignore')
+        writer = csv.DictWriter(sys.stdout, fieldnames=['success','_target','_status','dc.identifier','dc.type','dc.title','dc.date','dc.relation','dc.creator','dc.contributor'], extrasaction='ignore')
         writer.writeheader()
         for row in reader:
             # Strip http://n2t.net/ from the beginning (if it is there)
