@@ -8,6 +8,11 @@ import json
 import logging
 import argparse, sys
 import urllib, urllib2
+import re
+
+# escape special characters for anvl metadata (from the EZID API doc)
+def escape (s):
+    return re.sub("[%:\r\n]", lambda c: "%%%02X" % ord(c.group(0)), s)
 
 # who_what_when is a dict with the keys who, what, and when. All other keys are ignored.
 def update_ark(ark, fields={}):
@@ -23,7 +28,7 @@ def update_ark(ark, fields={}):
     #Add profile
     data = "_profile: %s\n" % ('dc')
     for descriptive_item_term, descriptive_item_value in fields.iteritems():
-        data += '%s: %s\n' % (descriptive_item_term, descriptive_item_value)
+        data += '%s: %s\n' % (escape(descriptive_item_term), escape(descriptive_item_value))
 
     request.add_data(data.encode("UTF-8"))
 
@@ -59,7 +64,7 @@ def mint_ark(fields={}):
     #Add profile
     data = "_profile: %s\n" % ('dc')
     for descriptive_item_term, descriptive_item_value in fields.iteritems():
-        data += '%s: %s\n' % (descriptive_item_term, descriptive_item_value)
+        data += '%s: %s\n' % (escape(descriptive_item_term), escape(descriptive_item_value))
 
     request.add_data(data.encode("UTF-8"))
 
@@ -117,13 +122,13 @@ if __name__ == '__main__':
         current_as_rid = None
         current_cid = None
         reader = csv.DictReader(csvfile, delimiter='\t')
-        writer = csv.DictWriter(sys.stdout, fieldnames=['_id','_target','_status','dc.identifier','dc.type','dc.title','dc.date','dc.isPartOf','dc.creator','dc.contributor'], extrasaction='ignore')
+        writer = csv.DictWriter(sys.stdout, delimiter='\t', fieldnames=['_id','_target','_status','dc.identifier','dc.type','dc.title','dc.date','dc.isPartOf','dc.creator','dc.contributor'], extrasaction='ignore')
         writer.writeheader()
         for row in reader:
             # only pass supported values
             dc_values = dict()
             for field in supported_fields:
-                if field in row:
+                if field in row and row[field]:
                     dc_values[field] = row[field].decode('utf-8').strip()
 
             if '_id' in row and row['_id']: # Update an ARK
