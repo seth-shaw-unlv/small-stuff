@@ -9,6 +9,10 @@ One script to batch mint EZIDs for resources in ArchivesSpace and another to gen
 
 Script to export Agents in a CSV via the API since the existing export is unusable.
 
+## as-sql
+
+Miscellaneous SQL queries to use with an ArchivesSpace database
+
 ## migrate-locations-as
 
 Scripts used in exploring the option of moving from a locations management spreadsheet to the ArchivesSpace locations module.
