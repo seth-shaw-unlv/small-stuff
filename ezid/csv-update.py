@@ -3,12 +3,83 @@
 from suds.client import Client
 import base64
 import ConfigParser
-import csv
+import csv, codecs, cStringIO, sys
+import io
 import json
 import logging
-import argparse, sys
+import argparse
 import urllib, urllib2
 import re
+import requests
+
+# Unicode support
+# https://gist.github.com/eightysteele/1174811/0cce72809ff71bed6212599c677925b338f94878
+class UTF8Recoder:
+    """
+    Iterator that reads an encoded stream and reencodes the input to UTF-8
+    """
+    def __init__(self, f, encoding):
+        self.reader = codecs.getreader(encoding)(f)
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        return self.reader.next().encode("utf-8")
+
+class UnicodeDictReader:
+    """
+    A CSV reader which will iterate over lines in the CSV file "f",
+    which is encoded in the given encoding.
+    """
+
+    def __init__(self, f, dialect=csv.excel, encoding="utf-8", **kwds):
+        f = UTF8Recoder(f, encoding)
+        self.reader = csv.reader(f, dialect=dialect, **kwds)
+        self.header = self.reader.next()
+
+    def next(self):
+        row = self.reader.next()
+        vals = [unicode(s, "utf-8") for s in row]
+        return dict((self.header[x], vals[x]) for x in range(len(self.header)))
+
+    def __iter__(self):
+        return self
+    
+class UnicodeDictWriter:
+    def __init__(self, f, fieldnames, restval="", extrasaction="raise",
+                 dialect="excel", encoding="utf-8", *args, **kwds):
+        self.fieldnames = fieldnames    # list of keys for the dict
+        self.restval = restval          # for writing short dicts
+        if extrasaction.lower() not in ("raise", "ignore"):
+            raise ValueError("extrasaction (%s) must be 'raise' or 'ignore'"
+                             % extrasaction)
+        self.extrasaction = extrasaction
+        self.writer = csv.writer(f, dialect, *args, **kwds)
+        self.encoder = codecs.getincrementalencoder(encoding)()
+
+    def writeheader(self):
+        header = dict(zip(self.fieldnames, self.fieldnames))
+        self.writerow(header)
+
+    def _dict_to_list(self, rowdict):
+        if self.extrasaction == "raise":
+            wrong_fields = rowdict.keys() - self.fieldnames
+            if wrong_fields:
+                raise ValueError("dict contains fields not in fieldnames: "
+                                 + ", ".join([repr(x) for x in wrong_fields]))
+        return list(rowdict.get(key, self.restval) for key in self.fieldnames)
+
+    def writerow(self, rowdict):
+        rowlist = self._dict_to_list(rowdict)
+        return self.writer.writerow([self.encoder.encode(x) for x in rowlist])
+
+    def writerows(self, rowdicts):
+        return self.writer.writerows(map(self._dict_to_list, rowdicts))
+
+    def writerows(self, rows):
+        for row in rows:
+            self.writerow(row)
 
 # escape special characters for anvl metadata (from the EZID API doc)
 def escape (s):
@@ -16,26 +87,24 @@ def escape (s):
 
 # who_what_when is a dict with the keys who, what, and when. All other keys are ignored.
 def update_ark(ark, fields={}):
-    request = urllib2.Request("%s/%s" % (config.get('ezid','update-url'),ark))
-    request.add_header("Content-Type", "text/plain; charset=UTF-8")
-
+    url = (u"%s/%s" % (config.get('ezid','update-url'),ark))
     #Authentication
     encoded_auth = base64.encodestring('%s:%s' % (config.get('ezid','username'),
                                                   config.get('ezid','password')
-                                                  )).replace('\n', '')
-    request.add_header("Authorization","Basic %s" % encoded_auth)
-
+                                                  )).replace('\n', '')    
+    headers = {
+        u'Content-Type': u'text/plain; charset=UTF-8',
+        u'Authorization': u"Basic %s" % encoded_auth
+    }
     #Add profile
-    data = "_profile: %s\n" % ('dc')
+    data = u"_profile: dc\n"
     for descriptive_item_term, descriptive_item_value in fields.iteritems():
-        data += '%s: %s\n' % (escape(descriptive_item_term), escape(descriptive_item_value))
-
-    request.add_data(data.encode("UTF-8"))
-
+        data += u'%s: %s\n' % (escape(descriptive_item_term), escape(descriptive_item_value))
+        
     try:
-        logging.debug('Request URL: %s Data: %s'%(request.get_full_url(),request.get_data()))
-        response = urllib2.urlopen(request)
-        answer = response.read()
+        r = requests.post(url, headers=headers, data=data.encode('utf-8'))
+        logging.debug(u'Request URL: %s Data: %s'%(r.url,data))
+        answer = r.text
         if answer.startswith('success'):
             code,ark = answer.split(": ")
             logging.debug('Updated ARK: %s' % (ark))
@@ -51,27 +120,24 @@ def update_ark(ark, fields={}):
           logging.error("Can't update ark. Response: %s", response)
 
 def mint_ark(fields={}):
-    request = urllib2.Request("%s/%s" % (config.get('ezid','minter-url'),
-                              config.get('ezid','ark-shoulder')))
-    request.add_header("Content-Type", "text/plain; charset=UTF-8")
-
+    url = (u"%s/%s" % (config.get('ezid','update-url'),ark))
     #Authentication
     encoded_auth = base64.encodestring('%s:%s' % (config.get('ezid','username'),
                                                   config.get('ezid','password')
-                                                  )).replace('\n', '')
-    request.add_header("Authorization","Basic %s" % encoded_auth)
-
+                                                  )).replace('\n', '')    
+    headers = {
+        u'Content-Type': u'text/plain; charset=UTF-8',
+        u'Authorization': u"Basic %s" % encoded_auth
+    }
     #Add profile
-    data = "_profile: %s\n" % ('dc')
+    data = u"_profile: dc\n"
     for descriptive_item_term, descriptive_item_value in fields.iteritems():
-        data += '%s: %s\n' % (escape(descriptive_item_term), escape(descriptive_item_value))
-
-    request.add_data(data.encode("UTF-8"))
-
+        data += u'%s: %s\n' % (escape(descriptive_item_term), escape(descriptive_item_value))
+        
     try:
-        logging.debug('Request URL: %s Data: %s'%(request.get_full_url(),request.get_data()))
-        response = urllib2.urlopen(request)
-        answer = response.read()
+        r = requests.post(url, headers=headers, data=data.encode('utf-8'))
+        logging.debug(u'Request URL: %s Data: %s'%(r.url,data))
+        answer = r.text
         if answer.startswith('success'):
             code,ark = answer.split(": ")
             logging.debug('Minted ARK: %s' % (ark))
@@ -118,30 +184,29 @@ if __name__ == '__main__':
         'dc.isPartOf','_status','_target'
         ]
 
-    with open(args.csv, 'rU') as csvfile: #'rU' because Mac Excel exports are wierd
-        current_as_rid = None
-        current_cid = None
-        reader = csv.DictReader(csvfile, delimiter='\t')
-        writer = csv.DictWriter(sys.stdout, delimiter='\t', fieldnames=['_id','_target','_status','dc.identifier','dc.type','dc.title','dc.date','dc.isPartOf','dc.creator','dc.contributor'], extrasaction='ignore')
-        writer.writeheader()
-        for row in reader:
-            # only pass supported values
-            dc_values = dict()
-            for field in supported_fields:
-                if field in row and row[field]:
-                    dc_values[field] = row[field].decode('utf-8').strip()
+    current_as_rid = None
+    current_cid = None
+    reader = UnicodeDictReader(open(args.csv, 'r'), delimiter='\t')
+    writer = UnicodeDictWriter(sys.stdout, fieldnames=['_id','_target','_status','dc.identifier','dc.type','dc.title','dc.date','dc.isPartOf','dc.creator','dc.contributor'], delimiter='\t', extrasaction='ignore')
+    writer.writeheader()
+    for row in reader:
+        # only pass supported values
+        dc_values = dict()
+        for field in supported_fields:
+            if field in row and row[field]:
+                dc_values[field] = row[field].strip()
 
-            if '_id' in row and row['_id']: # Update an ARK
-                # Update the ARK
-                if not args.dry:
-                    update_ark(row['_id'],dc_values)
+        if '_id' in row and row['_id']: # Update an ARK
+            # Update the ARK
+            if not args.dry:
+                update_ark(row['_id'],dc_values)
 
-                dc_values['_id'] = row['_id']
+            dc_values['_id'] = row['_id']
 
-            else: # Mint an ARK
-                if args.dry:
-                    dc_values['_id'] = 'ark:/FAKE_ARK'
-                else:
-                    new_ark = mint_ark(dc_values)
-                    dc_values['_id'] = new_ark
-            writer.writerow(dc_values)
+        else: # Mint an ARK
+            if args.dry:
+                dc_values['_id'] = 'ark:/FAKE_ARK'
+            else:
+                new_ark = mint_ark(dc_values)
+                dc_values['_id'] = new_ark
+        writer.writerow(dc_values)
