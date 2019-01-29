@@ -207,4 +207,4 @@ if __name__ == '__main__':
             os.makedirs(os.path.normpath(config.get('pdf','export-location')))
 
         with open(os.path.normpath('%s/%s.pdf' % (config.get('pdf','export-location'), identifier )), "wb") as local_file:
-            local_file.write(archivesspace_api_call("/repositories/%s/resource_descriptions/%s.pdf" % (config.get('archivesspace', 'repository'), resource_identifier ), as_obj = False).read())
+            local_file.write(archivesspace_api_call("/repositories/%s/resource_descriptions/%s.pdf?include_daos=true" % (config.get('archivesspace', 'repository'), resource_identifier ), as_obj = False).read())
