@@ -120,7 +120,8 @@ def update_ark(ark, fields={}):
           logging.error("Can't update ark. Response: %s", response)
 
 def mint_ark(fields={}):
-    url = (u"%s/%s" % (config.get('ezid','update-url'),ark))
+    url = (u"%s/%s" % (config.get('ezid','minter-url'),
+                              config.get('ezid','ark-shoulder')))
     #Authentication
     encoded_auth = base64.encodestring('%s:%s' % (config.get('ezid','username'),
                                                   config.get('ezid','password')
