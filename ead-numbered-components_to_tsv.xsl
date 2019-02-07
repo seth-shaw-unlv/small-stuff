@@ -69,7 +69,7 @@
 
         <xsl:value-of select="normalize-space(ead:did/ead:unitid)"/>
         <xsl:value-of select="$tab"/>
-        
+
         <!-- I would rather this be recursive, but it works. -->
         <xsl:choose>
             <xsl:when test="name() = 'c05'">
@@ -127,39 +127,52 @@
         <!-- level -->
         <xsl:value-of select="@level"/>
         <xsl:value-of select="$tab"/>
-        
+
         <!-- date -->
         <xsl:value-of select="normalize-space(ead:did/ead:unitdate)"/>
         <xsl:value-of select="$tab"/>
-        
+
         <!-- physdesc extent -->
-        <xsl:value-of
-            select="normalize-space(ead:did/ead:physdesc/ead:extent[@altrender = 'materialtype spaceoccupied'])"/>
+        <xsl:choose>
+            <xsl:when
+                test="count(ead:did/ead:physdesc/ead:extent[@altrender = 'materialtype spaceoccupied']) > 1">
+                <xsl:for-each
+                    select="ead:did/ead:physdesc/ead:extent[@altrender = 'materialtype spaceoccupied']">
+                    <xsl:value-of select="normalize-space(.)"/>
+                    <xsl:text>;</xsl:text>
+                </xsl:for-each>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:value-of
+                    select="normalize-space(ead:did/ead:physdesc/ead:extent[@altrender = 'materialtype spaceoccupied'])"
+                />
+            </xsl:otherwise>
+        </xsl:choose>
         <xsl:text> </xsl:text>
         <xsl:value-of
             select="normalize-space(ead:did/ead:physdesc/ead:extent[@altrender = 'carrier'])"/>
         <xsl:value-of select="$tab"/>
-        
+
         <!-- odd -->
         <xsl:value-of select="normalize-space(ead:odd/ead:p)"/>
         <xsl:value-of select="$tab"/>
-        
+
         <!-- Top-level container ( box of flat files ) -->
         <xsl:value-of select="normalize-space(ead:did/ead:container[1]/@type)"/>
         <xsl:value-of select="$tab"/>
         <xsl:value-of select="normalize-space(ead:did/ead:container[1])"/>
         <xsl:value-of select="$tab"/>
-        
+
         <!-- Second container (folder) -->
         <xsl:value-of select="normalize-space(ead:did/ead:container[2]/@type)"/>
         <xsl:value-of select="$tab"/>
         <xsl:value-of select="normalize-space(ead:did/ead:container[2])"/>
-                
+
         <!--
         <xsl:value-of select="$tab"/>
         <xsl:apply-templates select="ead:scopecontent"/>
          -->
-        
+
         <xsl:value-of select="$newline"/>
 
         <!-- If a level contains that next level, it will process it. Otherwise it will do nothing. -->
@@ -169,7 +182,7 @@
         <xsl:apply-templates select="ead:c05"/>
 
     </xsl:template>
-    
+
     <xsl:template match="ead:scopecontent">
         <!-- Keep the p tags but ditch tabs and line endings. Collateral loss of emph tags. -->
         <xsl:for-each select="ead:p">
