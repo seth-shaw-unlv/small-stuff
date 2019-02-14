@@ -1,5 +1,5 @@
 SELECT title, 
-       identifier, 
+       REPLACE(REPLACE(REPLACE(identifier, '","','-'),'["',''),'",null,null]','') AS identifier, 
        ead_location 
 FROM resource 
 WHERE ead_location IS NOT Null 
