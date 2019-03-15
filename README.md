@@ -35,3 +35,7 @@ Two scripts that populate ArchivesSpace digital object instances based on CONTEN
 ## ezid
 
 Scripts for querying and updating EZID ARKs.
+
+## islandora-8
+
+One script, generate-image-service-files.php, for kicking off image derivatives after a large migration. 
