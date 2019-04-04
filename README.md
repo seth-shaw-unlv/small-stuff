@@ -27,10 +27,11 @@ Script to mint ARKs for every item in a CONTENTdm collection. (Uses the Catcher 
 
 ## cdm-update-as
 
-Two scripts that populate ArchivesSpace digital object instances based on CONTENTdm objects.
+Scripts to populate ArchivesSpace digital object instances based on CONTENTdm objects.
 
 - cdm_update_as.py works by matching CDM object titles and a collection identifier to AS archival object titles and resource identifiers.
 - cdm_update_as_pho.py works by taking an Image ID from a CDM object field and matching it to an AS archival object component ID. *Currently only produces a TSV file of matches and errors. Needs to be updated to use ARKs instead once ARKs are minted for these CDM objects.*
+- csv_link_ref_id.py takes a CSV of ARKs, digital ids, titles, and ArchivesSpace ref_ids (usually from ead-numbered-components_to_tsv.xsl) to create digital object records in ArchivesSpace.
 
 ## ezid
 
