@@ -162,7 +162,7 @@ if __name__ == '__main__':
     with open(args.csv, 'rU') as csvfile: #'rU' because Mac Excel exports are wierd
         current_as_rid = None
         current_cid = None
-        reader = csv.DictReader(csvfile, dialect=csv.excel)
+        reader = csv.DictReader(csvfile, dialect=csv.excel, delimiter='\t')
         for row in reader:
             # REPORT and SKIP if the do has no identifier
             if not do_field in row:
