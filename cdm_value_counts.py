@@ -6,14 +6,17 @@ import json
 
 if __name__ == '__main__':
 
-    ws_url='https://yourserver.contentdm.oclc.org'
+    ws_url='https://server17304.contentdm.oclc.org'
     queryClient = CDM.QueryClient(ws_url)
     # Check arguments
     if len(sys.argv)<2:
         sys.exit("Please provide at least one CDM alias to query.")
 
     query='0' # get every item
-    fields = ['date','creato','covera','narrat']
+#    fields = ['date','creato','covera','narrat']
+#    fields = ['creato','indivi','contri','indiva']
+#    fields = ['group','identa','groupa','groupb']
+    fields = ['corpor','group','affili','identa']
     for alias in sys.argv[1:]:
         value_counts = {}
         for result in queryClient.query(alias,query,fields):
