@@ -129,7 +129,12 @@
         <xsl:value-of select="$tab"/>
 
         <!-- date -->
-        <xsl:value-of select="normalize-space(ead:did/ead:unitdate)"/>
+        <xsl:for-each select="ead:did/ead:unitdate">
+            <xsl:if test="position() > 1">
+                <xsl:text>, </xsl:text>
+            </xsl:if>
+            <xsl:value-of select="normalize-space(.)"/>
+        </xsl:for-each>
         <xsl:value-of select="$tab"/>
 
         <!-- physdesc extent -->
@@ -154,7 +159,12 @@
         <xsl:value-of select="$tab"/>
 
         <!-- odd -->
-        <xsl:value-of select="normalize-space(ead:odd/ead:p)"/>
+        <xsl:for-each select="ead:odd/ead:p">
+            <xsl:if test="position() > 1">
+                <xsl:text> </xsl:text>
+            </xsl:if>
+            <xsl:value-of select="normalize-space(.)"/>
+        </xsl:for-each>
         <xsl:value-of select="$tab"/>
 
         <!-- Top-level container ( box of flat files ) -->
