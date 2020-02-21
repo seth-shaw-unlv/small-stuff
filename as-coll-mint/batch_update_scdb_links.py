@@ -3,13 +3,6 @@
 import csv
 import sys
 
-# Only works with MSS table. Update for each table.
-
-TABLE = 'SPEC_PC_PHOTOCOLL_PHO'
-ID = 'id_pho'
-IDENTIFIER = 'coll_man'
-LINK = 'link_guide'
-
 fields = {
   'man': {
     'table': 'SPEC_MAN_MANUSCRIPTS_MAN',
