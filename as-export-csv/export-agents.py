@@ -90,22 +90,23 @@ if __name__ == '__main__':
     configFilePath = r'config.ini'
     config.read(configFilePath)
 
-    out = csv.DictWriter(sys.stdout, dialect=csv.excel, fieldnames=('uri','jsonmodel_type','primary_name','prefix','rest_of_name','suffix','family_name','qualifier','fuller_form','number','title','dates','exist_begin','exist_end','use_begin','use_end','use_expression','rules','authority_id','roles','source'), extrasaction='ignore')
+    out = csv.DictWriter(sys.stdout, dialect=csv.excel, fieldnames=('uri','jsonmodel_type','is_linked_to_published_record','primary_name','prefix','rest_of_name','suffix','family_name','qualifier','fuller_form','number','title','dates','exist_begin','exist_end','use_begin','use_end','use_expression','rules','authority_id','roles','source'), extrasaction='ignore')
     out.writeheader()
 
     for path in ('/agents/families','/agents/people','/agents/corporate_entities'):
         for thing in archivesspace_api_call_paginated(path):
             # print "Found something: %s" % (json.dumps(thing, indent=4))
-            #thing_essentials={'uri':thing['uri'],'title':thing['title']} # We need the title field for honorary titles
-            thing_essentials={'uri':thing['uri']}
+            thing_essentials={'uri':thing['uri'],'title':thing['title'],'is_linked_to_published_record':thing['is_linked_to_published_record']} # We need the title field for honorary titles
+            #thing_essentials={'uri':thing['uri']}
             #Dates of existence:
             if 'dates_of_existence' in thing and len(thing['dates_of_existence']) > 0:
                 thing_essentials['exist_begin'] = thing['dates_of_existence'][0].get('begin','')
                 thing_essentials['exist_end'] = thing['dates_of_existence'][0].get('end','')
+             
 
             for name in thing['names']:
 
-               # add the uri for printing the csv
+              # add the uri for printing the csv
                name.update(thing_essentials)
 
                # Simplify the use dates:
@@ -117,4 +118,5 @@ if __name__ == '__main__':
                    name['use_end'] = use_dates[0].get('end','')
 
                # Ensure the writerow is using unicode (where appropriate)
-               out.writerow({k:(v.encode('utf8') if isinstance(v, unicode) else v) for k,v in name.items()})
+               if name.get('is_display_name') == True:
+                   out.writerow({k:(v.encode('utf8') if isinstance(v, unicode) else v) for k,v in name.items()})
