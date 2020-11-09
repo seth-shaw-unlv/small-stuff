@@ -1,15 +1,18 @@
 #!/usr/bin/python
 
 import base64
+import ConfigParser
 import os, sys, logging, csv
 import urllib, urllib2
 
 def update_ark(ark, target):
-    request = urllib2.Request("%s/%s" % ('https://ezid.cdlib.org/id', ark))
+    request = urllib2.Request("%s/%s" % (config.get('ezid','update-url'), ark))
     request.add_header("Content-Type", "text/plain; charset=UTF-8")
 
     #Authentication
-    encoded_auth = base64.encodestring('%s:%s' % ('REMOVED USERNAME','REMOVED PASSWORD')).replace('\n', '')
+    encoded_auth = base64.encodestring('%s:%s' % (config.get('ezid','username'),
+                                                  config.get('ezid','password')
+                                                  )).replace('\n', '')  
     request.add_header("Authorization","Basic %s" % encoded_auth)
 
     #Add target URL
@@ -24,7 +27,7 @@ def update_ark(ark, target):
         if answer.startswith('success'):
             return answer
         else:
-            logging.error("Can't mint ark: %s", answer)
+            logging.error("Can't update ark: %s", answer)
             return ''
     except urllib2.HTTPError, e:
         logging.error("%d %s\n" % (e.code, e.msg))
@@ -52,6 +55,11 @@ def query_ark(ark):
 
 if __name__ == '__main__':
 
+    global config
+    config = ConfigParser.ConfigParser()
+    configFilePath = r'config.ini'
+    config.read(configFilePath)
+
     # Check arguments
     if len(sys.argv)<2:
         sys.exit("Please provide CSV with arks in an '_id' field.")
@@ -66,7 +74,7 @@ if __name__ == '__main__':
         reader = csv.DictReader(csvfile)
         for row in reader:
             target = query_ark(row['_id'])['_target']
-            if not 'https://' in target: continue
-            new_target = target.replace('https://','http://')
+            if not 'http://' in target: continue
+            new_target = target.replace('http://','https://')
             response = update_ark(row['_id'],new_target)
             print("\t".join((row['_id'],target,new_target,response)))
