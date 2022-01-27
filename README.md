@@ -1,3 +1,11 @@
+**This repository is deprecated and will no longer be updated. I've moved the relevant parts to other repositories.**
+
+New locations:
+
+- EZID: [https://github.com/UNLV-Libraries/ezid](https://github.com/UNLV-Libraries/ezid)
+- ArchivesSpace related: [https://github.com/UNLV-Libraries/ArchivesSpace-authority-project/tree/master/misc](https://github.com/UNLV-Libraries/ArchivesSpace-authority-project/tree/master/misc)
+- Islandora derivatives script: [https://gist.github.com/seth-shaw-unlv/bd64930fa1f75be3aba05ade34433092](https://gist.github.com/seth-shaw-unlv/bd64930fa1f75be3aba05ade34433092)
+
 # small-stuff
 Small bits that aren't part of anything else.
 
